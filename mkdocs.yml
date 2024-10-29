@@ -1,0 +1,52 @@
+site_name: gmmx
+repo_url: https://github.com/adonath/gmmx
+site_url: https://adonath.github.io/gmmx
+site_description: A minimal implementation of Gaussian Mixture Models in Jax
+site_author: Axel Donath
+edit_uri: edit/main/docs/
+repo_name: adonath/gmmx
+copyright: Maintained by <a href="https://adonath.com">Florian</a>.
+
+nav:
+  - Home: index.md
+  - Modules: modules.md
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [gmmx]
+theme:
+  name: material
+  feature:
+    tabs: true
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/adonath/gmmx
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/gmmx
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
