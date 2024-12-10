@@ -183,18 +183,13 @@ class GaussianMixtureModelJax:
     @jax.jit
     def estimate_log_prob(self, x):
         """Compute log likelihood for given feature vector"""
-        n_samples, n_features = x.shape
+        x = jnp.expand_dims(x, axis=(1, 2))
+        means_prec = jnp.matmul(self.means[:, None, :], self.covariances.precisions_cholesky)
 
-        log_prob = []
+        y = jnp.matmul(x, self.covariances.precisions_cholesky[None]) - means_prec
 
-        # means_prec = jnp.matmul(self.means, self.covariances.precisions_cholesky)
-
-        for mu, prec_chol in zip(self.means, self.covariances.precisions_cholesky):
-            y = jnp.dot(x, prec_chol) - jnp.dot(mu, prec_chol)
-            log_prob.append(jnp.sum(jnp.square(y), axis=1))
-
-        log_prob = jnp.stack(log_prob, axis=1)
-        # Since we are using the precision of the Cholesky decomposition,
-        # `- 0.5 * log_det_precision` becomes `+ log_det_precision_chol`
+        log_prob = jnp.sum(jnp.square(y), axis=(2, 3))
         two_pi = jnp.array(2 * jnp.pi)
-        return -0.5 * (n_features * jnp.log(two_pi) + log_prob) + self.covariances.log_det_cholesky + self.log_weights
+        return (
+            -0.5 * (self.n_features * jnp.log(two_pi) + log_prob) + self.covariances.log_det_cholesky + self.log_weights
+        )
