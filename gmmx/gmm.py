@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 import jax
+import numpy as np
 from jax import numpy as jnp
 from jax import scipy as jsp
 
@@ -26,6 +27,14 @@ class Axis(int, Enum):
     features_covar = 3
 
 
+def expand_dims_if_needed(x, axis):
+    """Expand dimensions if needed"""
+    if x.ndim == len(Axis):
+        return x
+
+    return jnp.expand_dims(x, axis=axis)
+
+
 @register_dataclass_jax(data_fields=["values"])
 @dataclass
 class FullCovariances:
@@ -40,7 +49,17 @@ class FullCovariances:
     values: jax.Array
 
     def __post_init__(self):
-        self.values = jnp.expand_dims(self.values, axis=Axis.batch)
+        self.values = expand_dims_if_needed(self.values, axis=Axis.batch)
+
+    @property
+    def values_numpy(self):
+        """Covariance as numpy array"""
+        return np.squeeze(np.asarray(self.values), axis=Axis.batch)
+
+    @property
+    def precisions_cholesky_numpy(self):
+        """Compute precision matrices"""
+        return np.squeeze(np.asarray(self.precisions_cholesky), axis=Axis.batch)
 
     @classmethod
     def create(cls, n_components, n_features):
@@ -95,6 +114,8 @@ COVARIANCE = {
     CovarianceType.full: FullCovariances,
 }
 
+SKLEARN_COVARIANCE_TYPE = {FullCovariances: "full"}
+
 
 @register_dataclass_jax(data_fields=["weights", "means", "covariances"])
 @dataclass
@@ -104,11 +125,11 @@ class GaussianMixtureModelJax:
     Attributes
     ----------
     weights : jax.array
-        Weights of each component. Expected shape is (n_components,)
+        Weights of each component. Expected shape is (1, n_components, 1, 1)
     means : jax.array
-        Mean of each component. Expected shape is (n_components, n_features)
+        Mean of each component. Expected shape is (1, n_components, n_features, 1)
     covariances : jax.array
-        Covariance of each component. Expected shape is (n_components, n_features, n_features)
+        Covariance of each component. Expected shape is (1, n_components, n_features, n_features)
     """
 
     weights: jax.Array
@@ -116,9 +137,21 @@ class GaussianMixtureModelJax:
     covariances: FullCovariances
 
     def __post_init__(self):
-        self.weights = jnp.expand_dims(self.weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
+        self.weights = expand_dims_if_needed(self.weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
+        self.means = expand_dims_if_needed(self.means, axis=(Axis.batch, Axis.features_covar))
 
-        self.means = jnp.expand_dims(self.means, axis=(Axis.batch, Axis.features_covar))
+    @property
+    def weights_numpy(self):
+        """Weights as numpy array"""
+        return np.squeeze(
+            np.asarray(self.weights),
+            axis=(Axis.batch, Axis.features, Axis.features_covar),
+        )
+
+    @property
+    def means_numpy(self):
+        """Means as numpy array"""
+        return np.squeeze(np.asarray(self.means), axis=(Axis.batch, Axis.features_covar))
 
     @classmethod
     def create(cls, n_components, n_features, covariance_type="full"):
@@ -232,6 +265,26 @@ class GaussianMixtureModelJax:
             -0.5 * (self.n_features * jnp.log(two_pi) + log_prob) + self.covariances.log_det_cholesky + self.log_weights
         )
         return jnp.squeeze(value, axis=(Axis.features, Axis.features_covar))
+
+    def to_sklearn(self):
+        """Convert to sklearn GaussianMixture
+
+        Returns
+        -------
+        gmm : GaussianMixture
+            Gaussian mixture model instance.
+        """
+        from sklearn.mixture import GaussianMixture
+
+        gmm = GaussianMixture(
+            n_components=self.n_components,
+            covariance_type=SKLEARN_COVARIANCE_TYPE[type(self.covariances)],
+        )
+        gmm.weights_ = self.weights_numpy
+        gmm.covariances_ = self.covariances.values_numpy
+        gmm.means_ = self.means_numpy
+        gmm.precisions_cholesky_ = self.covariances.precisions_cholesky_numpy
+        return gmm
 
     @jax.jit
     def predict(self, x):
