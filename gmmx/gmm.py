@@ -19,7 +19,7 @@ class CovarianceType(str, Enum):
 
 
 class Axis(int, Enum):
-    """Axis order"""
+    """Internal axis order"""
 
     batch = 0
     components = 1
@@ -27,12 +27,12 @@ class Axis(int, Enum):
     features_covar = 3
 
 
-def expand_dims_if_needed(x, axis):
-    """Expand dimensions if needed"""
-    if x.ndim == len(Axis):
-        return x
-
-    return jnp.expand_dims(x, axis=axis)
+def check_shape(array, expected):
+    """Check shape of array"""
+    for n, m in zip(array.shape, expected):
+        if m is not None and n != m:
+            message = f"Expected shape {expected}, got {array.shape}"
+            raise ValueError(message)
 
 
 @register_dataclass_jax(data_fields=["values"])
@@ -43,13 +43,45 @@ class FullCovariances:
     Attributes
     ----------
     values : jax.array
-        Covariance values.
+        Covariance values. Expected shape is (1, n_components, n_features, n_features)
     """
 
     values: jax.Array
 
     def __post_init__(self):
-        self.values = expand_dims_if_needed(self.values, axis=Axis.batch)
+        check_shape(self.values, (1, None, None, None))
+
+    @classmethod
+    def from_squeezed(cls, values):
+        """Create a covariance matrix from squeezed array
+
+        Parameters
+        ----------
+        values : jax.Array
+            Covariance values. Expected shape is (n_components, n_features, n_features)
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Covariance matrix instance.
+        """
+        return cls(values=jnp.expand_dims(values, axis=Axis.batch))
+
+    @classmethod
+    def from_numpy(cls, values):
+        """Create a covariance matrix from numpy array
+
+        Parameters
+        ----------
+        values : np.array
+            Covariance values. Expected shape is (n_components, n_features, n_features)
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Covariance matrix instance.
+        """
+        return cls.from_squeezed(values=jnp.asarray(values))
 
     @property
     def values_numpy(self):
@@ -137,8 +169,8 @@ class GaussianMixtureModelJax:
     covariances: FullCovariances
 
     def __post_init__(self):
-        self.weights = expand_dims_if_needed(self.weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
-        self.means = expand_dims_if_needed(self.means, axis=(Axis.batch, Axis.features_covar))
+        check_shape(self.weights, (1, None, 1, 1))
+        check_shape(self.means, (1, None, None, 1))
 
     @property
     def weights_numpy(self):
@@ -179,17 +211,17 @@ class GaussianMixtureModelJax:
         return cls(weights=weights, means=means, covariances=covariances)
 
     @classmethod
-    def from_numpy(cls, means, covariances, weights, covariance_type="full"):
-        """Create a Jax GMM from numpy arrays
+    def from_squeezed(cls, means, covariances, weights, covariance_type="full"):
+        """Create a Jax GMM from squeezed arrays
 
         Parameters
         ----------
-        means : np.array
-            Mean of each component.
-        covariances : np.array
-            Covariance of each component.
-        weights : np.array
-            Weights of each component.
+        means : jax.Array
+            Mean of each component. Expected shape is (n_components, n_features)
+        covariances : jax.Array
+            Covariance of each component. Expected shape is (n_components, n_features, n_features)
+        weights : jax.Array
+            Weights of each component. Expected shape is (n_components,)
         covariance_type : str, optional
             Covariance type, by default "full"
 
@@ -200,10 +232,38 @@ class GaussianMixtureModelJax:
         """
         covariance_type = CovarianceType(covariance_type)
 
-        means = jnp.asarray(means)
-        covariances = COVARIANCE[covariance_type](values=jnp.asarray(covariances))
-        weights = jnp.asarray(weights)
+        means = jnp.expand_dims(means, axis=(Axis.batch, Axis.features_covar))
+        values = jnp.expand_dims(covariances, axis=Axis.batch)
+        covariances = COVARIANCE[covariance_type](values=values)
+        weights = jnp.expand_dims(weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
         return cls(weights=weights, means=means, covariances=covariances)
+
+    @classmethod
+    def from_numpy(cls, means, covariances, weights, covariance_type="full"):
+        """Create a Jax GMM from numpy arrays
+
+        Parameters
+        ----------
+        means : np.array
+            Mean of each component. Expected shape is (n_components, n_features)
+        covariances : np.array
+            Covariance of each component. Expected shape is (n_components, n_features, n_features)
+        weights : np.array
+            Weights of each component. Expected shape is (n_components,)
+        covariance_type : str, optional
+            Covariance type, by default "full"
+
+        Returns
+        -------
+        gmm : GaussianMixtureModelJax
+            Gaussian mixture model instance.
+        """
+        return cls.from_squeezed(
+            means=jnp.asarray(means),
+            covariances=jnp.asarray(covariances),
+            weights=jnp.asarray(weights),
+            covariance_type=covariance_type,
+        )
 
     @classmethod
     def from_k_means(cls, x, n_components):
