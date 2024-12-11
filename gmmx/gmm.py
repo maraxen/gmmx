@@ -103,8 +103,14 @@ class FullCovariances:
         """Compute log likelihood from the covariance for a given feature vector"""
         precisions_cholesky = self.precisions_cholesky
 
-        y = jnp.matmul(x, precisions_cholesky) - jnp.matmul(means.mT, precisions_cholesky)
-        return jnp.sum(jnp.square(y), axis=(Axis.features, Axis.features_covar), keepdims=True)
+        y = jnp.matmul(x, precisions_cholesky) - jnp.matmul(
+            means.mT, precisions_cholesky
+        )
+        return jnp.sum(
+            jnp.square(y),
+            axis=(Axis.features, Axis.features_covar),
+            keepdims=True,
+        )
 
     @property
     def n_components(self):
@@ -124,7 +130,11 @@ class FullCovariances:
     @property
     def log_det_cholesky(self):
         """Precision matrices pytorch"""
-        diag = jnp.diagonal(self.precisions_cholesky, axis1=Axis.features, axis2=Axis.features_covar)
+        diag = jnp.diagonal(
+            self.precisions_cholesky,
+            axis1=Axis.features,
+            axis2=Axis.features_covar,
+        )
         return jnp.expand_dims(
             jnp.sum(jnp.log(diag), axis=Axis.features, keepdims=True),
             axis=Axis.features_covar,
@@ -135,7 +145,9 @@ class FullCovariances:
         """Compute precision matrices"""
         cov_chol = jsp.linalg.cholesky(self.values, lower=True)
 
-        identity = jnp.expand_dims(jnp.eye(self.n_features), axis=(Axis.batch, Axis.components))
+        identity = jnp.expand_dims(
+            jnp.eye(self.n_features), axis=(Axis.batch, Axis.components)
+        )
 
         b = jnp.repeat(identity, self.n_components, axis=Axis.components)
         precisions_chol = jsp.linalg.solve_triangular(cov_chol, b, lower=True)
@@ -183,7 +195,9 @@ class GaussianMixtureModelJax:
     @property
     def means_numpy(self):
         """Means as numpy array"""
-        return np.squeeze(np.asarray(self.means), axis=(Axis.batch, Axis.features_covar))
+        return np.squeeze(
+            np.asarray(self.means), axis=(Axis.batch, Axis.features_covar)
+        )
 
     @classmethod
     def create(cls, n_components, n_features, covariance_type="full"):
@@ -207,7 +221,9 @@ class GaussianMixtureModelJax:
 
         weights = jnp.ones(n_components) / n_components
         means = jnp.zeros((n_components, n_features))
-        covariances = COVARIANCE[covariance_type].create(n_components, n_features)
+        covariances = COVARIANCE[covariance_type].create(
+            n_components, n_features
+        )
         return cls(weights=weights, means=means, covariances=covariances)
 
     @classmethod
@@ -233,7 +249,9 @@ class GaussianMixtureModelJax:
         covariance_type = CovarianceType(covariance_type)
 
         means = jnp.expand_dims(means, axis=(Axis.batch, Axis.features_covar))
-        weights = jnp.expand_dims(weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
+        weights = jnp.expand_dims(
+            weights, axis=(Axis.batch, Axis.features, Axis.features_covar)
+        )
 
         values = jnp.expand_dims(covariances, axis=Axis.batch)
         covariances = COVARIANCE[covariance_type](values=values)
@@ -297,7 +315,12 @@ class GaussianMixtureModelJax:
     @property
     def n_parameters(self):
         """Number of parameters"""
-        return int(self.n_components + self.n_components * self.n_features + self.covariances.n_parameters - 1)
+        return int(
+            self.n_components
+            + self.n_components * self.n_features
+            + self.covariances.n_parameters
+            - 1
+        )
 
     @property
     def log_weights(self):
@@ -323,7 +346,9 @@ class GaussianMixtureModelJax:
         two_pi = jnp.array(2 * jnp.pi)
 
         value = (
-            -0.5 * (self.n_features * jnp.log(two_pi) + log_prob) + self.covariances.log_det_cholesky + self.log_weights
+            -0.5 * (self.n_features * jnp.log(two_pi) + log_prob)
+            + self.covariances.log_det_cholesky
+            + self.log_weights
         )
         return jnp.squeeze(value, axis=(Axis.features, Axis.features_covar))
 
