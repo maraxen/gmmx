@@ -15,7 +15,7 @@ def gmm_jax():
     covariances = np.array([covar_1, covar_2])
     weights = np.array([0.2, 0.8])
 
-    gmm_jax = GaussianMixtureModelJax.from_numpy(
+    gmm_jax = GaussianMixtureModelJax.from_squeezed(
         means=means,
         covariances=covariances,
         weights=weights,
@@ -30,7 +30,14 @@ def test_simple(gmm_jax):
 
 
 def test_against_sklearn(gmm_jax):
-    x = np.array([[1, 2, 3], [1, 4, 2], [1, 0, 6], [4, 2, 4], [4, 4, 4], [4, 0, 2]])
+    x = np.array([
+        [1, 2, 3],
+        [1, 4, 2],
+        [1, 0, 6],
+        [4, 2, 4],
+        [4, 4, 4],
+        [4, 0, 2],
+    ])
 
     gmm = gmm_jax.to_sklearn()
     result_ref = gmm._estimate_weighted_log_prob(X=x)

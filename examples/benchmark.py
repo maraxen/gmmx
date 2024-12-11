@@ -18,7 +18,7 @@ covariances = np.matmul(values, values.mT)
 weights = random_state.uniform(0, 1, n_components)
 weights /= weights.sum()
 
-gmm_jax = GaussianMixtureModelJax.from_numpy(
+gmm_jax = GaussianMixtureModelJax.from_squeezed(
     means=means,
     covariances=covariances,
     weights=weights,

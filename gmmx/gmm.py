@@ -57,7 +57,7 @@ class FullCovariances:
 
         Parameters
         ----------
-        values : jax.Array
+        values : jax.Array ot np.array
             Covariance values. Expected shape is (n_components, n_features, n_features)
 
         Returns
@@ -66,22 +66,6 @@ class FullCovariances:
             Covariance matrix instance.
         """
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
-
-    @classmethod
-    def from_numpy(cls, values):
-        """Create a covariance matrix from numpy array
-
-        Parameters
-        ----------
-        values : np.array
-            Covariance values. Expected shape is (n_components, n_features, n_features)
-
-        Returns
-        -------
-        covariances : FullCovariances
-            Covariance matrix instance.
-        """
-        return cls.from_squeezed(values=jnp.asarray(values))
 
     @property
     def values_numpy(self):
@@ -232,11 +216,11 @@ class GaussianMixtureModelJax:
 
         Parameters
         ----------
-        means : jax.Array
+        means : jax.Array or np.array
             Mean of each component. Expected shape is (n_components, n_features)
-        covariances : jax.Array
+        covariances : jax.Array or np.array
             Covariance of each component. Expected shape is (n_components, n_features, n_features)
-        weights : jax.Array
+        weights : jax.Array or np.array
             Weights of each component. Expected shape is (n_components,)
         covariance_type : str, optional
             Covariance type, by default "full"
@@ -256,33 +240,6 @@ class GaussianMixtureModelJax:
         values = jnp.expand_dims(covariances, axis=Axis.batch)
         covariances = COVARIANCE[covariance_type](values=values)
         return cls(weights=weights, means=means, covariances=covariances)
-
-    @classmethod
-    def from_numpy(cls, means, covariances, weights, covariance_type="full"):
-        """Create a Jax GMM from numpy arrays
-
-        Parameters
-        ----------
-        means : np.array
-            Mean of each component. Expected shape is (n_components, n_features)
-        covariances : np.array
-            Covariance of each component. Expected shape is (n_components, n_features, n_features)
-        weights : np.array
-            Weights of each component. Expected shape is (n_components,)
-        covariance_type : str, optional
-            Covariance type, by default "full"
-
-        Returns
-        -------
-        gmm : GaussianMixtureModelJax
-            Gaussian mixture model instance.
-        """
-        return cls.from_squeezed(
-            means=jnp.asarray(means),
-            covariances=jnp.asarray(covariances),
-            weights=jnp.asarray(weights),
-            covariance_type=covariance_type,
-        )
 
     @classmethod
     def from_k_means(cls, x, n_components):
