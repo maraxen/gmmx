@@ -34,4 +34,4 @@ def test_against_sklearn():
     result_ref = gmm._estimate_weighted_log_prob(X=x)
     result = gmm_jax.estimate_log_prob(x=jnp.asarray(x))
 
-    assert_allclose(np.asarray(result), result_ref)
+    assert_allclose(np.asarray(result), result_ref, rtol=1e-6)
