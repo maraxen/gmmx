@@ -233,9 +233,10 @@ class GaussianMixtureModelJax:
         covariance_type = CovarianceType(covariance_type)
 
         means = jnp.expand_dims(means, axis=(Axis.batch, Axis.features_covar))
+        weights = jnp.expand_dims(weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
+
         values = jnp.expand_dims(covariances, axis=Axis.batch)
         covariances = COVARIANCE[covariance_type](values=values)
-        weights = jnp.expand_dims(weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
         return cls(weights=weights, means=means, covariances=covariances)
 
     @classmethod
