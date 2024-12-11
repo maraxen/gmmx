@@ -17,20 +17,30 @@ class CovarianceType(str, Enum):
     spherical = "spherical"
 
 
-class AxisOrder(int, Enum):
+class Axis(int, Enum):
     """Axis order"""
 
-    n_components = 0
-    n_features = 1
-    n_features_covar = 2
+    batch = 0
+    components = 1
+    features = 2
+    features_covar = 3
 
 
 @register_dataclass_jax(data_fields=["values"])
 @dataclass
 class FullCovariances:
-    """Full covariance matrix"""
+    """Full covariance matrix
+
+    Attributes
+    ----------
+    values : jax.array
+        Covariance values.
+    """
 
     values: jax.Array
+
+    def __post_init__(self):
+        self.values = jnp.expand_dims(self.values, axis=Axis.batch)
 
     @classmethod
     def create(cls, n_components, n_features):
@@ -38,37 +48,47 @@ class FullCovariances:
         values = jnp.zeros((n_components, n_features, n_features))
         return cls(values=values)
 
-    def log_prob(self, x):
-        pass
+    def log_prob(self, x, means):
+        """Compute log likelihood from the covariance for a given feature vector"""
+        precisions_cholesky = self.precisions_cholesky
+
+        y = jnp.matmul(x, precisions_cholesky) - jnp.matmul(means.mT, precisions_cholesky)
+        return jnp.sum(jnp.square(y), axis=(Axis.features, Axis.features_covar), keepdims=True)
 
     @property
     def n_components(self):
         """Number of components"""
-        return self.values.shape[AxisOrder.n_components]
+        return self.values.shape[Axis.components]
 
     @property
     def n_features(self):
         """Number of features"""
-        return self.values.shape[AxisOrder.n_features]
+        return self.values.shape[Axis.features]
+
+    @property
+    def n_parameters(self):
+        """Number of parameters"""
+        return self.n_components * self.n_features * (self.n_features + 1) / 2.0
 
     @property
     def log_det_cholesky(self):
         """Precision matrices pytorch"""
-        reshaped = self.precisions_cholesky.reshape(self.n_components, -1)
-        reshaped = reshaped[:, :: self.n_features + 1]
-        return jnp.sum(jnp.log(reshaped), axis=1)
+        diag = jnp.diagonal(self.precisions_cholesky, axis1=Axis.features, axis2=Axis.features_covar)
+        return jnp.expand_dims(
+            jnp.sum(jnp.log(diag), axis=Axis.features, keepdims=True),
+            axis=Axis.features_covar,
+        )
 
     @property
     def precisions_cholesky(self):
         """Compute precision matrices"""
         cov_chol = jsp.linalg.cholesky(self.values, lower=True)
-        b = jnp.repeat(jnp.eye(self.n_features)[None], self.n_components, axis=0)
+
+        identity = jnp.expand_dims(jnp.eye(self.n_features), axis=(Axis.batch, Axis.components))
+
+        b = jnp.repeat(identity, self.n_components, axis=Axis.components)
         precisions_chol = jsp.linalg.solve_triangular(cov_chol, b, lower=True)
         return precisions_chol.mT
-
-    def dense(self):
-        """Dense representation"""
-        return self.values
 
 
 COVARIANCE = {
@@ -84,16 +104,21 @@ class GaussianMixtureModelJax:
     Attributes
     ----------
     weights : jax.array
-        Weights of each component.
+        Weights of each component. Expected shape is (n_components,)
     means : jax.array
-        Mean of each component.
+        Mean of each component. Expected shape is (n_components, n_features)
     covariances : jax.array
-        Covariance of each component.
+        Covariance of each component. Expected shape is (n_components, n_features, n_features)
     """
 
     weights: jax.Array
     means: jax.Array
     covariances: FullCovariances
+
+    def __post_init__(self):
+        self.weights = jnp.expand_dims(self.weights, axis=(Axis.batch, Axis.features, Axis.features_covar))
+
+        self.means = jnp.expand_dims(self.means, axis=(Axis.batch, Axis.features_covar))
 
     @classmethod
     def create(cls, n_components, n_features, covariance_type="full"):
@@ -176,20 +201,50 @@ class GaussianMixtureModelJax:
         return self.covariances.n_components
 
     @property
+    def n_parameters(self):
+        """Number of parameters"""
+        return int(self.n_components + self.n_components * self.n_features + self.covariances.n_parameters - 1)
+
+    @property
     def log_weights(self):
         """Log weights (~jax.ndarray)"""
         return jnp.log(self.weights)
 
-    @jax.jit
     def estimate_log_prob(self, x):
-        """Compute log likelihood for given feature vector"""
-        x = jnp.expand_dims(x, axis=(1, 2))
-        means_prec = jnp.matmul(self.means[:, None, :], self.covariances.precisions_cholesky)
+        """Compute log likelihood for given feature vector
 
-        y = jnp.matmul(x, self.covariances.precisions_cholesky[None]) - means_prec
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
 
-        log_prob = jnp.sum(jnp.square(y), axis=(2, 3))
+        Returns
+        -------
+        log_prob : jax.array
+            Log likelihood
+        """
+        x = jnp.expand_dims(x, axis=(Axis.components, Axis.features))
+
+        log_prob = self.covariances.log_prob(x, self.means)
         two_pi = jnp.array(2 * jnp.pi)
-        return (
+
+        value = (
             -0.5 * (self.n_features * jnp.log(two_pi) + log_prob) + self.covariances.log_det_cholesky + self.log_weights
         )
+        return jnp.squeeze(value, axis=(Axis.features, Axis.features_covar))
+
+    @jax.jit
+    def predict(self, x):
+        """Predict the component index for each sample
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+
+        Returns
+        -------
+        predictions : jax.array
+            Predicted component index
+        """
+        return jnp.argmax(self.estimate_log_prob(x), axis=Axis.components)
