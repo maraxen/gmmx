@@ -1,3 +1,4 @@
+import jax
 import numpy as np
 import pytest
 from jax import numpy as jnp
@@ -46,3 +47,11 @@ def test_against_sklearn(gmm_jax):
     assert_allclose(np.asarray(result), result_ref, rtol=1e-6)
 
     assert gmm_jax.n_parameters == gmm._n_parameters()
+
+
+def test_sample(gmm_jax):
+    key = jax.random.PRNGKey(0)
+    samples = gmm_jax.sample(key, 2)
+
+    assert samples.shape == (2, 3)
+    assert_allclose(samples[0, 0], -2.458194, rtol=1e-6)

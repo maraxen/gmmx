@@ -20,7 +20,7 @@ operations such as matmul and cholesky decomposition, the Python loop does not b
 the bottleneck. In JAX, however, it is usually better to avoid Python loops and let
 the JAX compiler take care of the optimization instead.
 
-4. **Rely on an internal axis order convention**:
+4. **Rely on same internal array dimension and axis order**:
 Internally all(!) involved arrays (even 1d weights) are represented as 4d arrays
 with the axes (batch, components, features, features_covar). This makes it much
 easier to write array operations and rely on broadcasting. This minimizes the
@@ -30,8 +30,10 @@ in first place. Yet, I have rarely seen this in practice, probably because peopl
 struggle with the additional dimensions in the beginning. However once you get
 used to it, it is much easier to write and understand the code! The only downside
 is that the user has to face the additional "empty" dimensions when directy working
-with the arrays. For convenience I have introoduce properties, that return the arrays
-with the empty dimensions removed.
+with the arrays. For convenience I have introduced properties, that return the arrays
+with the empty dimensions removed. Another downside maybe that you have to use `keepdims=True`
+more often, but there I would even argue that the default behavior in the array libraries
+should change.
 
 5. **"Poor-peoples" named axes**: The axis order convention is defined in the
 code in the `Axis` enum, which maps the name to the integer dimension. Later I
@@ -42,11 +44,11 @@ this to be a very powerful concept that improves the code clarity a lot, yet I
 have not seen it often in other libraries. Of course there is `einops` but the
 simple enum works just fine in many cases!
 
-
 """
 
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 
 import jax
 import numpy as np
@@ -54,6 +56,8 @@ from jax import numpy as jnp
 from jax import scipy as jsp
 
 from gmmx.utils import register_dataclass_jax
+
+__all__ = ["FullCovariances", "GaussianMixtureModelJax"]
 
 
 class CovarianceType(str, Enum):
@@ -76,6 +80,10 @@ class Axis(int, Enum):
 
 def check_shape(array, expected):
     """Check shape of array"""
+    if len(array.shape) != len(expected):
+        message = f"Expected shape {expected}, got {array.shape}"
+        raise ValueError(message)
+
     for n, m in zip(array.shape, expected):
         if m is not None and n != m:
             message = f"Expected shape {expected}, got {array.shape}"
@@ -127,14 +135,14 @@ class FullCovariances:
     @classmethod
     def create(cls, n_components, n_features):
         """Create covariance matrix"""
-        values = jnp.zeros((n_components, n_features, n_features))
+        values = jnp.zeros((1, n_components, n_features, n_features))
         return cls(values=values)
 
     def log_prob(self, x, means):
         """Compute log likelihood from the covariance for a given feature vector"""
         precisions_cholesky = self.precisions_cholesky
 
-        y = jnp.matmul(x, precisions_cholesky) - jnp.matmul(
+        y = jnp.matmul(x.mT, precisions_cholesky) - jnp.matmul(
             means.mT, precisions_cholesky
         )
         return jnp.sum(
@@ -161,15 +169,12 @@ class FullCovariances:
     @property
     def log_det_cholesky(self):
         """Precision matrices pytorch"""
-        diag = jnp.diagonal(
-            self.precisions_cholesky,
+        diag = jnp.trace(
+            jnp.log(self.precisions_cholesky),
             axis1=Axis.features,
             axis2=Axis.features_covar,
         )
-        return jnp.expand_dims(
-            jnp.sum(jnp.log(diag), axis=Axis.features, keepdims=True),
-            axis=Axis.features_covar,
-        )
+        return jnp.expand_dims(diag, axis=(Axis.features, Axis.features_covar))
 
     @property
     def precisions_cholesky(self):
@@ -189,6 +194,7 @@ COVARIANCE = {
     CovarianceType.full: FullCovariances,
 }
 
+# keep this mapping separate, as names in sklearn might change
 SKLEARN_COVARIANCE_TYPE = {FullCovariances: "full"}
 
 
@@ -331,6 +337,7 @@ class GaussianMixtureModelJax:
         """Log weights (~jax.ndarray)"""
         return jnp.log(self.weights)
 
+    @jax.jit
     def estimate_log_prob(self, x):
         """Compute log likelihood for given feature vector
 
@@ -344,7 +351,7 @@ class GaussianMixtureModelJax:
         log_prob : jax.array
             Log likelihood
         """
-        x = jnp.expand_dims(x, axis=(Axis.components, Axis.features))
+        x = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
 
         log_prob = self.covariances.log_prob(x, self.means)
         two_pi = jnp.array(2 * jnp.pi)
@@ -391,3 +398,39 @@ class GaussianMixtureModelJax:
             Predicted component index
         """
         return jnp.argmax(self.estimate_log_prob(x), axis=Axis.components)
+
+    @partial(jax.jit, static_argnames=["n_samples"])
+    def sample(self, key, n_samples):
+        """Sample from the model
+
+        Parameters
+        ----------
+        key : jax.random.PRNGKey
+            Random key
+        n_samples : int
+            Number of samples
+
+        Returns
+        -------
+        samples : jax.array
+            Samples
+        """
+        key, subkey = jax.random.split(key)
+
+        selected = jax.random.categorical(
+            key, self.log_weights.flatten(), shape=(n_samples,)
+        )
+
+        means = jnp.take(self.means, selected, axis=Axis.components)
+        covar = jnp.take(
+            self.covariances.values, selected, axis=Axis.components
+        )
+
+        samples = jax.random.multivariate_normal(
+            subkey,
+            jnp.squeeze(means, axis=Axis.features_covar),
+            covar,
+            shape=(1, n_samples),
+        )
+
+        return jnp.squeeze(samples, axis=Axis.batch)
