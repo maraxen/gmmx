@@ -1,3 +1,50 @@
+"""Some notes on the implementation:
+
+I have not tried to keep the implementation close to the sklearn implementation.
+I have rather tried to realize my own best practices for code structure and
+clarity. Here are some more detailed thoughts:
+
+1. **Use dataclasses for the model representation**: this reduces the amount of
+boilerplate code for initialization and in combination with the `register_dataclass_jax`
+decorator it integrates seamleassly with JAX.
+
+2. **Split up the different covariance types into different classes**: this avoids
+the need for multiple blocks of if-else statements.
+
+3. **Use a registry for the covariance types**:  This allows for easy extensibility
+by the user.
+
+3. **Remove Python loops**: I have not checked the reason why the sklearn implementation
+still uses Python loops, but my guess is that it is simpler(?) and when there are
+operations such as matmul and cholesky decomposition, the Python loop does not become
+the bottleneck. In JAX, however, it is usually better to avoid Python loops and let
+the JAX compiler take care of the optimization instead.
+
+4. **Rely on an internal axis order convention**:
+Internally all(!) involved arrays (even 1d weights) are represented as 4d arrays
+with the axes (batch, components, features, features_covar). This makes it much
+easier to write array operations and rely on broadcasting. This minimizes the
+amount of in-line reshaping and in-line extension of dimensions. If you think
+about it, this is most likely the way how array programming was meant to be used
+in first place. Yet, I have rarely seen this in practice, probably because people
+struggle with the additional dimensions in the beginning. However once you get
+used to it, it is much easier to write and understand the code! The only downside
+is that the user has to face the additional "empty" dimensions when directy working
+with the arrays. For convenience I have introoduce properties, that return the arrays
+with the empty dimensions removed.
+
+5. **"Poor-peoples" named axes**: The axis order convention is defined in the
+code in the `Axis` enum, which maps the name to the integer dimension. Later I
+can use, e.g. `Axis.batch` to refer to the batch axis in the code. This is the
+simplest way to come close to named axes in any array library! So you can use
+e.g. `jnp.sum(x, axes=Axis.components)` to sum over the components axis. I found
+this to be a very powerful concept that improves the code clarity a lot, yet I
+have not seen it often in other libraries. Of course there is `einops` but the
+simple enum works just fine in many cases!
+
+
+"""
+
 from dataclasses import dataclass
 from enum import Enum
 
