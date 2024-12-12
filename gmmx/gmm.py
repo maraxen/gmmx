@@ -428,9 +428,9 @@ class GaussianMixtureModelJax:
 
         samples = jax.random.multivariate_normal(
             subkey,
-            jnp.squeeze(means, axis=Axis.features_covar),
-            covar,
-            shape=(1, n_samples),
+            jnp.squeeze(means, axis=(Axis.batch, Axis.features_covar)),
+            jnp.squeeze(covar, axis=Axis.batch),
+            shape=(n_samples,),
         )
 
-        return jnp.squeeze(samples, axis=Axis.batch)
+        return samples
