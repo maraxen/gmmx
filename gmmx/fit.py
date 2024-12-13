@@ -143,6 +143,6 @@ class EMFitter:
         result = jax.lax.while_loop(
             cond_fun=em_cond,
             body_fun=em_step,
-            init_val=(x, gmm, 0, jnp.asarray(1e25), jnp.array(jnp.inf)),
+            init_val=(x, gmm, 0, jnp.asarray(jnp.inf), jnp.array(jnp.inf)),
         )
         return EMFitterResult(*result)
