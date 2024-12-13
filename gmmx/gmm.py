@@ -266,12 +266,12 @@ class FullCovariances:
         return precisions_chol.mT
 
 
-COVARIANCE = {
+COVARIANCE: dict[CovarianceType, Any] = {
     CovarianceType.full: FullCovariances,
 }
 
 # keep this mapping separate, as names in sklearn might change
-SKLEARN_COVARIANCE_TYPE = {FullCovariances: "full"}
+SKLEARN_COVARIANCE_TYPE: dict[Any, str] = {FullCovariances: "full"}
 
 
 @register_dataclass_jax(data_fields=["weights", "means", "covariances"])
@@ -377,7 +377,7 @@ class GaussianMixtureModelJax:
 
         values = jnp.expand_dims(covariances, axis=Axis.batch)
         covariances = COVARIANCE[covariance_type](values=values)
-        return cls(weights=weights, means=means, covariances=covariances)
+        return cls(weights=weights, means=means, covariances=covariances)  # type: ignore [arg-type]
 
     @classmethod
     def from_k_means(cls, x: jax.Array, n_components: int) -> None:
@@ -447,7 +447,7 @@ class GaussianMixtureModelJax:
         )
         return value
 
-    def to_sklearn(self, **kwargs) -> Any:
+    def to_sklearn(self, **kwargs: dict) -> Any:
         """Convert to sklearn GaussianMixture
 
         Parameters
@@ -460,7 +460,7 @@ class GaussianMixtureModelJax:
         gmm : `~sklearn.mixture.GaussianMixture`
             Gaussian mixture model instance.
         """
-        from sklearn.mixture import GaussianMixture
+        from sklearn.mixture import GaussianMixture  # type: ignore [import-untyped]
 
         gmm = GaussianMixture(
             n_components=self.n_components,
