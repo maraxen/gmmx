@@ -136,6 +136,8 @@ class FullCovariances:
     def create(cls, n_components, n_features):
         """Create covariance matrix
 
+        By default the covariance matrix is set to the identity matrix.
+
         Parameters
         ----------
         n_components : int
@@ -170,12 +172,33 @@ class FullCovariances:
 
     @classmethod
     def estimate(cls, x, means, resp, nk, reg_covar):
-        """Estimate covariance matrix from data"""
+        """Estimate covariance matrix from data
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+        means : jax.array
+            Means of the components
+        resp : jax.array
+            Responsibilities
+        nk : jax.array
+            Number of samples in each component
+        reg_covar : float
+            Regularization for the covariance matrix
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Updated covariance matrix instance.
+        """
         diff = x - means
         axes = (Axis.features_covar, Axis.components, Axis.features, Axis.batch)
         diff = jnp.transpose(diff, axes=axes)
         resp = jnp.transpose(resp, axes=axes)
         values = jnp.matmul(resp * diff, diff.mT) / nk
+        idx = jnp.arange(x.shape[Axis.features])
+        values = values.at[:, :, idx, idx].add(reg_covar)
         return cls(values=values)
 
     @property
