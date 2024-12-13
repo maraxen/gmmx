@@ -1,1 +1,1 @@
-::: gmmx.foo
+::: gmmx.gmm
