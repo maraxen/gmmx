@@ -430,7 +430,7 @@ class GaussianMixtureModelJax:
             Predicted component index
         """
         log_prob = self.estimate_log_prob(x)
-        predictions = jnp.argmax(log_prob, axis=Axis.components)
+        predictions = jnp.argmax(log_prob, axis=Axis.components, keepdims=True)
         return jnp.squeeze(
             predictions, axis=(Axis.features, Axis.features_covar)
         )

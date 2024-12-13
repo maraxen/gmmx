@@ -72,6 +72,22 @@ def test_sample(gmm_jax):
     assert_allclose(samples[0, 0], -2.458194, rtol=1e-6)
 
 
+def test_predict(gmm_jax):
+    x = np.array([
+        [1, 2, 3],
+        [1, 4, 2],
+        [1, 0, 6],
+        [4, 2, 4],
+        [4, 4, 4],
+        [4, 0, 2],
+    ])
+
+    result = gmm_jax.predict(x=jnp.asarray(x))
+
+    assert result.shape == (6, 1)
+    assert_allclose(result[0], 1, rtol=1e-6)
+
+
 def test_fit(gmm_jax, gmm_jax_init):
     x = gmm_jax.sample(jax.random.PRNGKey(0), 10_000)
 
