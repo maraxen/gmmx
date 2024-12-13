@@ -56,7 +56,9 @@ class EMFitter:
     tol: float = 1e-3
     reg_covar: float = 1e-6
 
-    def e_step(self, x, gmm):
+    def e_step(
+        self, x: jax.Array, gmm: GaussianMixtureModelJax
+    ) -> tuple[jax.Array, jax.Array]:
         """Expectation step
 
         Parameters
@@ -78,7 +80,9 @@ class EMFitter:
         log_resp = log_prob - log_prob_norm
         return jnp.mean(log_prob_norm), log_resp
 
-    def m_step(self, x, gmm, log_resp):
+    def m_step(
+        self, x: jax.Array, gmm: GaussianMixtureModelJax, log_resp: jax.Array
+    ) -> GaussianMixtureModelJax:
         """Maximization step
 
         Parameters
@@ -103,12 +107,12 @@ class EMFitter:
         covariances = gmm.covariances.estimate(
             x=xp, means=means, resp=resp, nk=nk, reg_covar=self.reg_covar
         )
-        return gmm.__class__(
+        return GaussianMixtureModelJax(
             weights=nk / nk.sum(), means=means, covariances=covariances
         )
 
     @jax.jit
-    def fit(self, x, gmm):
+    def fit(self, x: jax.Array, gmm: GaussianMixtureModelJax) -> EMFitterResult:
         """Fit the model to the data
 
         Parameters
@@ -124,7 +128,12 @@ class EMFitter:
             Fitting result
         """
 
-        def em_step(args):
+        def em_step(
+            args: tuple[
+                jax.Array, GaussianMixtureModelJax, int, jax.Array, jax.Array
+            ],
+        ) -> tuple:
+            """EM step function"""
             x, gmm, n_iter, log_likelihood_prev, _ = args
             log_likelihood, log_resp = self.e_step(x, gmm)
             gmm = self.m_step(x, gmm, log_resp)
@@ -136,7 +145,12 @@ class EMFitter:
                 jnp.abs(log_likelihood - log_likelihood_prev),
             )
 
-        def em_cond(args):
+        def em_cond(
+            args: tuple[
+                jax.Array, GaussianMixtureModelJax, int, jax.Array, jax.Array
+            ],
+        ) -> jax.Array:
+            """EM stop condition function"""
             _, _, n_iter, _, log_likelihood_diff = args
             return (n_iter < self.max_iter) & (log_likelihood_diff > self.tol)
 
