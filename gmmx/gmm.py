@@ -134,8 +134,25 @@ class FullCovariances:
 
     @classmethod
     def create(cls, n_components, n_features):
-        """Create covariance matrix"""
-        values = jnp.zeros((1, n_components, n_features, n_features))
+        """Create covariance matrix
+
+        Parameters
+        ----------
+        n_components : int
+            Number of components
+        n_features : int
+            Number of features
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Covariance matrix instance.
+        """
+        identity = jnp.expand_dims(
+            jnp.eye(n_features), axis=(Axis.batch, Axis.components)
+        )
+
+        values = jnp.repeat(identity, n_components, axis=Axis.components)
         return cls(values=values)
 
     def log_prob(self, x, means):
@@ -150,6 +167,16 @@ class FullCovariances:
             axis=(Axis.features, Axis.features_covar),
             keepdims=True,
         )
+
+    @classmethod
+    def estimate(cls, x, means, resp, nk, reg_covar):
+        """Estimate covariance matrix from data"""
+        diff = x - means
+        axes = (Axis.features_covar, Axis.components, Axis.features, Axis.batch)
+        diff = jnp.transpose(diff, axes=axes)
+        resp = jnp.transpose(resp, axes=axes)
+        values = jnp.matmul(resp * diff, diff.mT) / nk
+        return cls(values=values)
 
     @property
     def n_components(self):
@@ -256,8 +283,8 @@ class GaussianMixtureModelJax:
         """
         covariance_type = CovarianceType(covariance_type)
 
-        weights = jnp.ones(n_components) / n_components
-        means = jnp.zeros((n_components, n_features))
+        weights = jnp.ones((1, n_components, 1, 1)) / n_components
+        means = jnp.zeros((1, n_components, n_features, 1))
         covariances = COVARIANCE[covariance_type].create(
             n_components, n_features
         )
@@ -352,7 +379,6 @@ class GaussianMixtureModelJax:
             Log likelihood
         """
         x = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
-
         log_prob = self.covariances.log_prob(x, self.means)
         two_pi = jnp.array(2 * jnp.pi)
 
@@ -361,14 +387,19 @@ class GaussianMixtureModelJax:
             + self.covariances.log_det_cholesky
             + self.log_weights
         )
-        return jnp.squeeze(value, axis=(Axis.features, Axis.features_covar))
+        return value
 
-    def to_sklearn(self):
+    def to_sklearn(self, **kwargs):
         """Convert to sklearn GaussianMixture
+
+        Parameters
+        ----------
+        **kwargs : dict
+            Additional arguments passed to `~sklearn.mixture.GaussianMixture`
 
         Returns
         -------
-        gmm : GaussianMixture
+        gmm : `~sklearn.mixture.GaussianMixture`
             Gaussian mixture model instance.
         """
         from sklearn.mixture import GaussianMixture
@@ -376,6 +407,7 @@ class GaussianMixtureModelJax:
         gmm = GaussianMixture(
             n_components=self.n_components,
             covariance_type=SKLEARN_COVARIANCE_TYPE[type(self.covariances)],
+            **kwargs,
         )
         gmm.weights_ = self.weights_numpy
         gmm.covariances_ = self.covariances.values_numpy
@@ -397,7 +429,11 @@ class GaussianMixtureModelJax:
         predictions : jax.array
             Predicted component index
         """
-        return jnp.argmax(self.estimate_log_prob(x), axis=Axis.components)
+        log_prob = self.estimate_log_prob(x)
+        predictions = jnp.argmax(log_prob, axis=Axis.components)
+        return jnp.squeeze(
+            predictions, axis=(Axis.features, Axis.features_covar)
+        )
 
     @partial(jax.jit, static_argnames=["n_samples"])
     def sample(self, key, n_samples):
