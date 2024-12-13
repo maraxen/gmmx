@@ -46,9 +46,12 @@ simple enum works just fine in many cases!
 
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
+from typing import Any, Union
 
 import jax
 import numpy as np
@@ -58,6 +61,9 @@ from jax import scipy as jsp
 from gmmx.utils import register_dataclass_jax
 
 __all__ = ["FullCovariances", "GaussianMixtureModelJax"]
+
+
+AnyArray = Union[np.ndarray, jax.Array]
 
 
 class CovarianceType(str, Enum):
@@ -78,7 +84,7 @@ class Axis(int, Enum):
     features_covar = 3
 
 
-def check_shape(array, expected):
+def check_shape(array: jax.Array, expected: tuple[int | None, ...]) -> None:
     """Check shape of array"""
     if len(array.shape) != len(expected):
         message = f"Expected shape {expected}, got {array.shape}"
@@ -103,11 +109,11 @@ class FullCovariances:
 
     values: jax.Array
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         check_shape(self.values, (1, None, None, None))
 
     @classmethod
-    def from_squeezed(cls, values):
+    def from_squeezed(cls, values: AnyArray) -> FullCovariances:
         """Create a covariance matrix from squeezed array
 
         Parameters
@@ -123,17 +129,17 @@ class FullCovariances:
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
 
     @property
-    def values_numpy(self):
+    def values_numpy(self) -> np.ndarray:
         """Covariance as numpy array"""
         return np.squeeze(np.asarray(self.values), axis=Axis.batch)
 
     @property
-    def precisions_cholesky_numpy(self):
+    def precisions_cholesky_numpy(self) -> np.ndarray:
         """Compute precision matrices"""
         return np.squeeze(np.asarray(self.precisions_cholesky), axis=Axis.batch)
 
     @classmethod
-    def create(cls, n_components, n_features):
+    def create(cls, n_components: int, n_features: int) -> FullCovariances:
         """Create covariance matrix
 
         By default the covariance matrix is set to the identity matrix.
@@ -157,8 +163,21 @@ class FullCovariances:
         values = jnp.repeat(identity, n_components, axis=Axis.components)
         return cls(values=values)
 
-    def log_prob(self, x, means):
-        """Compute log likelihood from the covariance for a given feature vector"""
+    def log_prob(self, x: jax.Array, means: jax.Array) -> jax.Array:
+        """Compute log likelihood from the covariance for a given feature vector
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+        means : jax.array
+            Means of the components
+
+        Returns
+        -------
+        log_prob : jax.array
+            Log likelihood
+        """
         precisions_cholesky = self.precisions_cholesky
 
         y = jnp.matmul(x.mT, precisions_cholesky) - jnp.matmul(
@@ -171,7 +190,14 @@ class FullCovariances:
         )
 
     @classmethod
-    def estimate(cls, x, means, resp, nk, reg_covar):
+    def estimate(
+        cls,
+        x: jax.Array,
+        means: jax.Array,
+        resp: jax.Array,
+        nk: jax.Array,
+        reg_covar: float,
+    ) -> FullCovariances:
         """Estimate covariance matrix from data
 
         Parameters
@@ -202,22 +228,22 @@ class FullCovariances:
         return cls(values=values)
 
     @property
-    def n_components(self):
+    def n_components(self) -> int:
         """Number of components"""
         return self.values.shape[Axis.components]
 
     @property
-    def n_features(self):
+    def n_features(self) -> int:
         """Number of features"""
         return self.values.shape[Axis.features]
 
     @property
-    def n_parameters(self):
+    def n_parameters(self) -> int:
         """Number of parameters"""
-        return self.n_components * self.n_features * (self.n_features + 1) / 2.0
+        return int(self.n_components * self.n_features * (self.n_features + 1) / 2.0)
 
     @property
-    def log_det_cholesky(self):
+    def log_det_cholesky(self) -> jax.Array:
         """Precision matrices pytorch"""
         diag = jnp.trace(
             jnp.log(self.precisions_cholesky),
@@ -227,7 +253,7 @@ class FullCovariances:
         return jnp.expand_dims(diag, axis=(Axis.features, Axis.features_covar))
 
     @property
-    def precisions_cholesky(self):
+    def precisions_cholesky(self) -> jax.Array:
         """Compute precision matrices"""
         cov_chol = jsp.linalg.cholesky(self.values, lower=True)
 
@@ -267,12 +293,12 @@ class GaussianMixtureModelJax:
     means: jax.Array
     covariances: FullCovariances
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         check_shape(self.weights, (1, None, 1, 1))
         check_shape(self.means, (1, None, None, 1))
 
     @property
-    def weights_numpy(self):
+    def weights_numpy(self) -> np.ndarray:
         """Weights as numpy array"""
         return np.squeeze(
             np.asarray(self.weights),
@@ -280,14 +306,19 @@ class GaussianMixtureModelJax:
         )
 
     @property
-    def means_numpy(self):
+    def means_numpy(self) -> np.ndarray:
         """Means as numpy array"""
         return np.squeeze(
             np.asarray(self.means), axis=(Axis.batch, Axis.features_covar)
         )
 
     @classmethod
-    def create(cls, n_components, n_features, covariance_type="full"):
+    def create(
+        cls,
+        n_components: int,
+        n_features: int,
+        covariance_type: CovarianceType = CovarianceType.full,
+    ) -> GaussianMixtureModelJax:
         """Create a GMM from configuration
 
         Parameters
@@ -308,13 +339,17 @@ class GaussianMixtureModelJax:
 
         weights = jnp.ones((1, n_components, 1, 1)) / n_components
         means = jnp.zeros((1, n_components, n_features, 1))
-        covariances = COVARIANCE[covariance_type].create(
-            n_components, n_features
-        )
+        covariances = COVARIANCE[covariance_type].create(n_components, n_features)
         return cls(weights=weights, means=means, covariances=covariances)
 
     @classmethod
-    def from_squeezed(cls, means, covariances, weights, covariance_type="full"):
+    def from_squeezed(
+        cls,
+        means: AnyArray,
+        covariances: AnyArray,
+        weights: AnyArray,
+        covariance_type: CovarianceType = CovarianceType.full,
+    ) -> GaussianMixtureModelJax:
         """Create a Jax GMM from squeezed arrays
 
         Parameters
@@ -345,7 +380,7 @@ class GaussianMixtureModelJax:
         return cls(weights=weights, means=means, covariances=covariances)
 
     @classmethod
-    def from_k_means(cls, x, n_components):
+    def from_k_means(cls, x: jax.Array, n_components: int) -> None:
         """Init from k-means clustering
 
         Parameters
@@ -363,17 +398,17 @@ class GaussianMixtureModelJax:
         raise NotImplementedError
 
     @property
-    def n_features(self):
+    def n_features(self) -> int:
         """Number of features"""
         return self.covariances.n_features
 
     @property
-    def n_components(self):
+    def n_components(self) -> int:
         """Number of components"""
         return self.covariances.n_components
 
     @property
-    def n_parameters(self):
+    def n_parameters(self) -> int:
         """Number of parameters"""
         return int(
             self.n_components
@@ -383,12 +418,12 @@ class GaussianMixtureModelJax:
         )
 
     @property
-    def log_weights(self):
+    def log_weights(self) -> jax.Array:
         """Log weights (~jax.ndarray)"""
         return jnp.log(self.weights)
 
     @jax.jit
-    def estimate_log_prob(self, x):
+    def estimate_log_prob(self, x: jax.Array) -> jax.Array:
         """Compute log likelihood for given feature vector
 
         Parameters
@@ -412,7 +447,7 @@ class GaussianMixtureModelJax:
         )
         return value
 
-    def to_sklearn(self, **kwargs):
+    def to_sklearn(self, **kwargs) -> Any:
         """Convert to sklearn GaussianMixture
 
         Parameters
@@ -439,7 +474,7 @@ class GaussianMixtureModelJax:
         return gmm
 
     @jax.jit
-    def predict(self, x):
+    def predict(self, x: jax.Array) -> jax.Array:
         """Predict the component index for each sample
 
         Parameters
@@ -454,12 +489,10 @@ class GaussianMixtureModelJax:
         """
         log_prob = self.estimate_log_prob(x)
         predictions = jnp.argmax(log_prob, axis=Axis.components, keepdims=True)
-        return jnp.squeeze(
-            predictions, axis=(Axis.features, Axis.features_covar)
-        )
+        return jnp.squeeze(predictions, axis=(Axis.features, Axis.features_covar))
 
     @partial(jax.jit, static_argnames=["n_samples"])
-    def sample(self, key, n_samples):
+    def sample(self, key: jax.Array, n_samples: int) -> jax.Array:
         """Sample from the model
 
         Parameters
@@ -481,9 +514,7 @@ class GaussianMixtureModelJax:
         )
 
         means = jnp.take(self.means, selected, axis=Axis.components)
-        covar = jnp.take(
-            self.covariances.values, selected, axis=Axis.components
-        )
+        covar = jnp.take(self.covariances.values, selected, axis=Axis.components)
 
         samples = jax.random.multivariate_normal(
             subkey,
