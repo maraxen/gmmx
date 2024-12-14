@@ -1,4 +1,4 @@
-# GMMX: Gaussian Mixture Model in Jax
+# GMMX: Gaussian Mixture Models in Jax
 
 [![Release](https://img.shields.io/github/v/release/adonath/gmmx)](https://img.shields.io/github/v/release/adonath/gmmx)
 [![Build status](https://img.shields.io/github/actions/workflow/status/adonath/gmmx/main.yml?branch=main)](https://github.com/adonath/gmmx/actions/workflows/main.yml?query=branch%3Amain)
