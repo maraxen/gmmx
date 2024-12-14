@@ -30,9 +30,7 @@ gmm_sklearn = gmm_jax.to_sklearn()
 x = random_state.uniform(-10, 10, (n_samples, n_features))
 x_jax = jnp.asarray(x)
 
-timer = timeit.Timer(
-    "gmm_jax.predict(x=x_jax).block_until_ready()", globals=globals()
-)
+timer = timeit.Timer("gmm_jax.predict(x=x_jax).block_until_ready()", globals=globals())
 value = timer.timeit(10)
 
 print(f"JAX: {value:.2f}")
