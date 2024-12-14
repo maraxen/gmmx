@@ -129,9 +129,7 @@ class EMFitter:
         """
 
         def em_step(
-            args: tuple[
-                jax.Array, GaussianMixtureModelJax, int, jax.Array, jax.Array
-            ],
+            args: tuple[jax.Array, GaussianMixtureModelJax, int, jax.Array, jax.Array],
         ) -> tuple:
             """EM step function"""
             x, gmm, n_iter, log_likelihood_prev, _ = args
@@ -146,9 +144,7 @@ class EMFitter:
             )
 
         def em_cond(
-            args: tuple[
-                jax.Array, GaussianMixtureModelJax, int, jax.Array, jax.Array
-            ],
+            args: tuple[jax.Array, GaussianMixtureModelJax, int, jax.Array, jax.Array],
         ) -> jax.Array:
             """EM stop condition function"""
             _, _, n_iter, _, log_likelihood_diff = args
