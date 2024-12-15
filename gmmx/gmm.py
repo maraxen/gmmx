@@ -189,16 +189,15 @@ class FullCovariances:
             keepdims=True,
         )
 
-    @classmethod
-    def estimate(
-        cls,
+    def update_parameters(
+        self,
         x: jax.Array,
         means: jax.Array,
         resp: jax.Array,
         nk: jax.Array,
         reg_covar: float,
     ) -> FullCovariances:
-        """Estimate covariance matrix from data
+        """Estimate updated covariance matrix from data
 
         Parameters
         ----------
@@ -223,9 +222,9 @@ class FullCovariances:
         diff = jnp.transpose(diff, axes=axes)
         resp = jnp.transpose(resp, axes=axes)
         values = jnp.matmul(resp * diff, diff.mT) / nk
-        idx = jnp.arange(x.shape[Axis.features])
+        idx = jnp.arange(self.n_features)
         values = values.at[:, :, idx, idx].add(reg_covar)
-        return cls(values=values)
+        return self.__class__(values=values)
 
     @property
     def n_components(self) -> int:
@@ -244,7 +243,7 @@ class FullCovariances:
 
     @property
     def log_det_cholesky(self) -> jax.Array:
-        """Precision matrices pytorch"""
+        """Log determinant of the cholesky decomposition"""
         diag = jnp.trace(
             jnp.log(self.precisions_cholesky),
             axis1=Axis.features,
@@ -378,6 +377,34 @@ class GaussianMixtureModelJax:
         values = jnp.expand_dims(covariances, axis=Axis.batch)
         covariances = COVARIANCE[covariance_type](values=values)
         return cls(weights=weights, means=means, covariances=covariances)  # type: ignore [arg-type]
+
+    def update_parameters(
+        self, x: jax.Array, resp: jax.Array, reg_covar: float
+    ) -> GaussianMixtureModelJax:
+        """Update parameters
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+        resp : jax.array
+            Responsibilities
+        reg_covar : float
+            Regularization for the covariance matrix
+
+        Returns
+        -------
+        gmm : GaussianMixtureModelJax
+            Updated Gaussian mixture model
+        """
+        nk = jnp.sum(resp, axis=Axis.batch, keepdims=True)
+        means = jnp.matmul(resp.T, x.T.mT).T / nk
+        covariances = self.covariances.update_parameters(
+            x=x, means=means, resp=resp, nk=nk, reg_covar=reg_covar
+        )
+        return self.__class__(
+            weights=nk / nk.sum(), means=means, covariances=covariances
+        )
 
     @classmethod
     def from_k_means(cls, x: jax.Array, n_components: int) -> None:

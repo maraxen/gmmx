@@ -99,17 +99,8 @@ class EMFitter:
         gmm : GaussianMixtureModelJax
             Updated Gaussian mixture model instance.
         """
-        xp = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
-
-        resp = jnp.exp(log_resp)
-        nk = jnp.sum(resp, axis=Axis.batch, keepdims=True)
-        means = jnp.matmul(resp.T, xp.T.mT).T / nk
-        covariances = gmm.covariances.estimate(
-            x=xp, means=means, resp=resp, nk=nk, reg_covar=self.reg_covar
-        )
-        return GaussianMixtureModelJax(
-            weights=nk / nk.sum(), means=means, covariances=covariances
-        )
+        x = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
+        return gmm.update_parameters(x, jnp.exp(log_resp), reg_covar=self.reg_covar)
 
     @jax.jit
     def fit(self, x: jax.Array, gmm: GaussianMixtureModelJax) -> EMFitterResult:
