@@ -45,6 +45,13 @@ def test_simple(gmm_jax):
     assert gmm_jax.n_parameters == 19
 
 
+def test_create():
+    gmm = GaussianMixtureModelJax.create(n_components=3, n_features=2)
+    assert gmm.n_features == 2
+    assert gmm.n_components == 3
+    assert gmm.n_parameters == 17
+
+
 def test_against_sklearn(gmm_jax):
     x = np.array([
         [1, 2, 3],
