@@ -64,6 +64,7 @@ __all__ = ["FullCovariances", "GaussianMixtureModelJax"]
 
 
 AnyArray = Union[np.ndarray, jax.Array]
+Device = Union[str, jax.devices.Device, None]
 
 
 class CovarianceType(str, Enum):
@@ -139,7 +140,9 @@ class FullCovariances:
         return np.squeeze(np.asarray(self.precisions_cholesky), axis=Axis.batch)
 
     @classmethod
-    def create(cls, n_components: int, n_features: int) -> FullCovariances:
+    def create(
+        cls, n_components: int, n_features: int, device: Device = None
+    ) -> FullCovariances:
         """Create covariance matrix
 
         By default the covariance matrix is set to the identity matrix.
@@ -150,6 +153,8 @@ class FullCovariances:
             Number of components
         n_features : int
             Number of features
+        device : str, optional
+            Device, by default None
 
         Returns
         -------
@@ -161,6 +166,7 @@ class FullCovariances:
         )
 
         values = jnp.repeat(identity, n_components, axis=Axis.components)
+        values = jax.device_put(values, device=device)
         return cls(values=values)
 
     def log_prob(self, x: jax.Array, means: jax.Array) -> jax.Array:
@@ -317,6 +323,7 @@ class GaussianMixtureModelJax:
         n_components: int,
         n_features: int,
         covariance_type: CovarianceType = CovarianceType.full,
+        device: Device = None,
     ) -> GaussianMixtureModelJax:
         """Create a GMM from configuration
 
@@ -328,6 +335,8 @@ class GaussianMixtureModelJax:
             Number of features
         covariance_type : str, optional
             Covariance type, by default "full"
+        device : str, optional
+            Device, by default None
 
         Returns
         -------
@@ -339,7 +348,11 @@ class GaussianMixtureModelJax:
         weights = jnp.ones((1, n_components, 1, 1)) / n_components
         means = jnp.zeros((1, n_components, n_features, 1))
         covariances = COVARIANCE[covariance_type].create(n_components, n_features)
-        return cls(weights=weights, means=means, covariances=covariances)
+        return cls(
+            weights=jax.device_put(weights, device=device),
+            means=jax.device_put(means, device=device),
+            covariances=jax.device_put(covariances, device=device),
+        )
 
     @classmethod
     def from_squeezed(
