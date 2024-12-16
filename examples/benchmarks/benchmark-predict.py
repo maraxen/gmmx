@@ -9,12 +9,16 @@ from dataclasses import asdict, dataclass, field
 from functools import partial
 from itertools import product
 from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+from jax import numpy as jnp
 from jax.lib import xla_bridge
 
 from gmmx import GaussianMixtureModelJax
+
+INCLUDE_GPU = False
 
 PATH = Path(__file__).parent
 PATH_RESULTS = PATH / "results"
@@ -70,6 +74,7 @@ class BenchmarkResult:
     n_features: Array
     time_sklearn: Array
     time_jax: Array
+    time_jax_gpu: Optional[Array] = None
     provenance: dict = field(default_factory=get_provenance)
 
     def write_json(self, path):
@@ -88,7 +93,7 @@ class BenchmarkResult:
         return cls(**data)
 
 
-def create_random_gmm(n_components, n_features, random_state=RANDOM_STATE):
+def create_random_gmm(n_components, n_features, random_state=RANDOM_STATE, device=None):
     """Create a random Gaussian mixture model"""
     means = random_state.uniform(-10, 10, (n_components, n_features))
 
@@ -98,13 +103,13 @@ def create_random_gmm(n_components, n_features, random_state=RANDOM_STATE):
     weights /= weights.sum()
 
     return GaussianMixtureModelJax.from_squeezed(
-        means=means,
-        covariances=covariances,
-        weights=weights,
+        means=jnp.device_put(means, device=device),
+        covariances=jnp.device_put(covariances, device=device),
+        weights=jnp.device_put(weights, device=device),
     )
 
 
-def create_random_data(n_samples, n_features, random_state=RANDOM_STATE):
+def create_random_data(n_samples, n_features, random_state=RANDOM_STATE, device=None):
     """Create random data"""
     return random_state.uniform(-10, 10, (n_samples, n_features))
 
@@ -142,6 +147,11 @@ def plot_result(result, x_axis, filename, title=""):
     ax.plot(x, result.time_jax, label=f"jax ({meta})", color=color)
     ax.scatter(x, result.time_jax, color=color)
 
+    if result.time_jax_gpu:
+        color = "#E58336"
+        ax.plot(x, result.time_jax_gpu, label=f"jax-gpu ({meta})", color=color)
+        ax.scatter(x, result.time_jax_gpu)
+
     ax.set_title(title)
     ax.set_xlabel(x_axis)
     ax.set_ylabel("Time (s)")
@@ -171,7 +181,7 @@ def measure_time_predict_jax(gmm, x):
 
 def measure_time_sklearn_vs_jax(n_components_grid, n_samples_grid, n_features_grid):
     """Measure the time to predict the responsibilities for sklearn and jax"""
-    time_sklearn, time_jax = [], []
+    time_sklearn, time_jax, time_jax_gpu = [], [], []
 
     for n_component, n_samples, n_features in product(
         n_components_grid, n_samples_grid, n_features_grid
@@ -185,12 +195,18 @@ def measure_time_sklearn_vs_jax(n_components_grid, n_samples_grid, n_features_gr
         time_sklearn.append(measure_time_predict_sklearn(gmm.to_sklearn(), x))
         time_jax.append(measure_time_predict_jax(gmm, x))
 
+        if INCLUDE_GPU:
+            gmm_gpu = create_random_gmm(n_component, n_features, device="gpu")
+            x_gpu = jnp.device_put(x, device="gpu")
+            time_jax_gpu.append(measure_time_predict_jax(gmm_gpu, x_gpu))
+
     return BenchmarkResult(
         n_samples=n_samples_grid,
         n_components=n_components_grid,
         n_features=n_features_grid,
         time_sklearn=time_sklearn,
         time_jax=time_jax,
+        time_jax_gpu=time_jax_gpu or None,
     )
 
 
