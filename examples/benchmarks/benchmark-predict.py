@@ -1,25 +1,33 @@
+import getpass
+import importlib
 import json
 import logging
+import platform
+import sys
 import timeit
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from functools import partial
 from itertools import product
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from jax.lib import xla_bridge
 
 from gmmx import GaussianMixtureModelJax
 
 PATH = Path(__file__).parent
+PATH_RESULTS = PATH / "results"
 RANDOM_STATE = np.random.RandomState(817237)
 N_AVERAGE = 10
 DPI = 180
 
 
 N_SAMPLES = 1024 * 2 ** np.arange(0, 11)
-N_COMPONENTS = 2 ** np.arange(1, 9)
-N_FEATURES = 2 ** np.arange(1, 9)
+N_COMPONENTS = 2 ** np.arange(1, 8)
+N_FEATURES = 2 ** np.arange(1, 8)
+
+PATH_TEMPLATE = "{user}-{machine}-{system}-{cpu}-{device-platform}"
 
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +35,30 @@ log = logging.getLogger(__name__)
 
 
 Array = list[float]
+
+
+def get_provenance():
+    """Compute provenance info about software and data used."""
+    env = {
+        "user": getpass.getuser(),
+        "machine": platform.machine(),
+        "system": platform.system(),
+        "cpu": platform.processor(),
+        "device-platform": xla_bridge.get_backend().platform,
+    }
+
+    software = {
+        "python-executable": sys.executable,
+        "python-version": platform.python_version(),
+        "jax-version": str(importlib.import_module("jax").__version__),
+        "numpy-version": str(importlib.import_module("numpy").__version__),
+        "sklearn-version": str(importlib.import_module("sklearn").__version__),
+    }
+
+    return {
+        "env": env,
+        "software": software,
+    }
 
 
 @dataclass
@@ -38,6 +70,7 @@ class BenchmarkResult:
     n_features: Array
     time_sklearn: Array
     time_jax: Array
+    provenance: dict = field(default_factory=get_provenance)
 
     def write_json(self, path):
         """Write the benchmark result to a JSON file"""
@@ -93,7 +126,7 @@ def get_meta_str(result, x_axis):
     return ", ".join(f"{k}={v}" for k, v in meta.items())
 
 
-def plot_result(result, x_axis, filename):
+def plot_result(result, x_axis, filename, title=""):
     """Plot the benchmark result"""
     log.info(f"Plotting {filename}")
     fig, ax = plt.subplots(1, 1, figsize=(6, 4))
@@ -101,10 +134,18 @@ def plot_result(result, x_axis, filename):
     x = getattr(result, x_axis)
     meta = get_meta_str(result, x_axis)
 
-    ax.plot(x, result.time_sklearn, label=f"sklearn ({meta})")
-    ax.plot(x, result.time_jax, label=f"jax ({meta})")
+    color = "#F1C44D"
+    ax.plot(x, result.time_sklearn, label=f"sklearn ({meta})", color=color)
+    ax.scatter(x, result.time_sklearn, color=color)
+
+    color = "#405087"
+    ax.plot(x, result.time_jax, label=f"jax ({meta})", color=color)
+    ax.scatter(x, result.time_jax, color=color)
+
+    ax.set_title(title)
     ax.set_xlabel(x_axis)
     ax.set_ylabel("Time (s)")
+    ax.semilogx()
     ax.legend()
 
     log.info(f"Writing {filename}")
@@ -157,41 +198,63 @@ def run_time_vs_n_components(filename):
     """Time vs n_components"""
     if not filename.exists():
         result = measure_time_sklearn_vs_jax(
-            N_COMPONENTS, n_samples_grid=[100_000], n_features_grid=[64]
+            N_COMPONENTS.tolist(), n_samples_grid=[100_000], n_features_grid=[64]
+        )
+        filename = (
+            PATH_RESULTS / PATH_TEMPLATE.format(**result.provenance["env"]) / filename
         )
         log.info(f"Writing {filename}")
         result.write_json(filename)
 
     result = BenchmarkResult.read(filename)
-    plot_result(result, x_axis="n_components", filename=filename.with_suffix(".png"))
+    plot_result(
+        result,
+        x_axis="n_components",
+        filename=filename.with_suffix(".png"),
+        title="Time vs Number of components",
+    )
 
 
 def run_time_vs_n_features(filename):
     """Time vs n_features"""
     if not filename.exists():
         result = measure_time_sklearn_vs_jax(
-            n_components_grid=[256],
+            n_components_grid=[128],
             n_samples_grid=[100_000],
-            n_features_grid=N_FEATURES,
+            n_features_grid=N_FEATURES.tolist(),
         )
         result.write_json(filename)
 
     result = BenchmarkResult.read(filename)
-    plot_result(result, x_axis="n_features", filename=filename.with_suffix(".png"))
+    plot_result(
+        result,
+        x_axis="n_features",
+        filename=filename.with_suffix(".png"),
+        title="Time vs Number of features",
+    )
 
 
 def run_time_vs_n_samples(filename):
     """Time vs n_samples"""
-    log.info("Running time vs n_samples")
-    result = measure_time_sklearn_vs_jax(
-        n_components_grid=[256], n_samples_grid=N_SAMPLES, n_features_grid=[64]
+    if not filename.exists():
+        result = measure_time_sklearn_vs_jax(
+            n_components_grid=[128],
+            n_samples_grid=N_SAMPLES.tolist(),
+            n_features_grid=[64],
+        )
+        result.write_json(filename)
+
+    result = BenchmarkResult.read(filename)
+    plot_result(
+        result,
+        x_axis="n_samples",
+        filename=filename.with_suffix(".png"),
+        title="Time vs Number of samples",
     )
-    result.write_json(filename)
-    plot_result(result, x_axis="n_samples", filename=filename.with_suffix(".png"))
 
 
 if __name__ == "__main__":
-    path = PATH / "results"
+    path = PATH_RESULTS / PATH_TEMPLATE.format(**get_provenance()["env"])
     run_time_vs_n_components(path / "time-vs-n-components-predict.json")
     run_time_vs_n_features(path / "time-vs-n-features-prefict.json")
     run_time_vs_n_samples(path / "time-vs-n-samples-predict.json")
