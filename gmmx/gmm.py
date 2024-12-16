@@ -64,7 +64,7 @@ __all__ = ["FullCovariances", "GaussianMixtureModelJax"]
 
 
 AnyArray = Union[np.ndarray, jax.Array]
-Device = Union[str, jax.devices.Device, None]
+Device = Union[str, None]
 
 
 class CovarianceType(str, Enum):
