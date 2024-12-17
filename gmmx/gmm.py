@@ -552,10 +552,14 @@ class GaussianMixtureModelJax:
         """
         key, subkey = jax.random.split(key)
 
-        selected = jax.random.categorical(
-            key, self.log_weights.flatten(), shape=(n_samples,)
+        selected = jax.random.choice(
+            key,
+            jnp.arange(self.n_components),
+            p=self.weights.flatten(),
+            shape=(n_samples,),
         )
 
+        # TODO: this blows up the memory, as the arrays are copied
         means = jnp.take(self.means, selected, axis=Axis.components)
         covar = jnp.take(self.covariances.values, selected, axis=Axis.components)
 
