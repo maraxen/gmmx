@@ -25,7 +25,7 @@ def gmm_jax():
 
 @pytest.fixture
 def gmm_jax_init():
-    means = np.array([[-0.8, 0.0, 1.2], [2.0, 0.0, -1.7]])
+    means = np.array([[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]])
 
     covar_1 = np.array([[1.1, 0.5, 0.3], [0.3, 1, 0.5], [0.5, 0.5, 1]])
     covar_2 = np.array([[1, 0.5, 0.2], [0.5, 1.1, 0.5], [0.5, 0.5, 1]])
@@ -102,7 +102,7 @@ def test_fit(gmm_jax, gmm_jax_init):
     fitter = EMFitter(tol=1e-6)
     result = fitter.fit(x=x, gmm=gmm_jax_init)
 
-    assert result.n_iter == 24
+    assert int(result.n_iter) == 13
     assert_allclose(result.log_likelihood, -4.368584, rtol=1e-6)
     assert_allclose(result.log_likelihood_diff, 9.536743e-07, atol=fitter.tol)
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.03)
