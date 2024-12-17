@@ -26,18 +26,27 @@ pip install gmmx
 ```python
 from gmmx import GaussianMixtureModelJax, EMFitter
 
-# Create a Gaussian Mixture Model with 2 components
-gmm = GaussianMixtureModelJax()
+# Create a Gaussian Mixture Model with 16 components and 32 features
+gmm = GaussianMixtureModelJax.create(n_components=16, n_features=32)
 
+n_samples = 10_000
+x = gmm.sample(n_samples)
 
+# Fit the model to the data
+em_fitter = EMFitter()
+gmm_fitted = em_fitter.fit(gmm, x)
+```
 
 ## Benchmarks
 
 Here are some results from the benchmarks in the `benchmarks` folder comparing against Scikit-Learn. The benchmarks were run on a 2021 MacBook Pro with an M1 Pro chip.
 
-
 ### Prediction Time
-| Time vs. Number of Components    | Time vs. Number of Samples | Time vs. Number of Features |
-| -------- | ------- | ------- |
+
+| Time vs. Number of Components                                                   | Time vs. Number of Samples                                                | Time vs. Number of Features                                                 |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | ![Time vs. Number of Components](docs/_static/time-vs-n-components-predict.png) | ![Time vs. Number of Samples](docs/_static/time-vs-n-samples-predict.png) | ![Time vs. Number of Features](docs/_static/time-vs-n-features-predict.png) |
+
+```
+
 ```
