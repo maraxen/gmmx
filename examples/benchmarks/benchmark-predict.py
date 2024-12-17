@@ -11,9 +11,9 @@ from itertools import product
 from pathlib import Path
 from typing import Optional
 
+import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from jax import numpy as jnp
 from jax.lib import xla_bridge
 
 from gmmx import GaussianMixtureModelJax
@@ -27,9 +27,9 @@ N_AVERAGE = 10
 DPI = 180
 
 
-N_SAMPLES = 1024 * 2 ** np.arange(0, 11)
-N_COMPONENTS = 2 ** np.arange(1, 8)
-N_FEATURES = 2 ** np.arange(1, 8)
+N_SAMPLES = 2 ** np.arange(5, 18)
+N_COMPONENTS = 2 ** np.arange(1, 7)
+N_FEATURES = 2 ** np.arange(1, 7)
 
 PATH_TEMPLATE = "{user}-{machine}-{system}-{cpu}-{device-platform}"
 
@@ -103,9 +103,9 @@ def create_random_gmm(n_components, n_features, random_state=RANDOM_STATE, devic
     weights /= weights.sum()
 
     return GaussianMixtureModelJax.from_squeezed(
-        means=jnp.device_put(means, device=device),
-        covariances=jnp.device_put(covariances, device=device),
-        weights=jnp.device_put(weights, device=device),
+        means=jax.device_put(means, device=device),
+        covariances=jax.device_put(covariances, device=device),
+        weights=jax.device_put(weights, device=device),
     )
 
 
@@ -144,8 +144,8 @@ def plot_result(result, x_axis, filename, title=""):
     ax.scatter(x, result.time_sklearn, color=color)
 
     color = "#405087"
-    ax.plot(x, result.time_jax, label=f"jax ({meta})", color=color)
-    ax.scatter(x, result.time_jax, color=color)
+    ax.plot(x, result.time_jax, label=f"jax ({meta})", color=color, zorder=3)
+    ax.scatter(x, result.time_jax, color=color, zorder=3)
 
     if result.time_jax_gpu:
         color = "#E58336"
@@ -197,7 +197,7 @@ def measure_time_sklearn_vs_jax(n_components_grid, n_samples_grid, n_features_gr
 
         if INCLUDE_GPU:
             gmm_gpu = create_random_gmm(n_component, n_features, device="gpu")
-            x_gpu = jnp.device_put(x, device="gpu")
+            x_gpu = jax.device_put(x, device="gpu")
             time_jax_gpu.append(measure_time_predict_jax(gmm_gpu, x_gpu))
 
     return BenchmarkResult(
@@ -272,5 +272,5 @@ def run_time_vs_n_samples(filename):
 if __name__ == "__main__":
     path = PATH_RESULTS / PATH_TEMPLATE.format(**get_provenance()["env"])
     run_time_vs_n_components(path / "time-vs-n-components-predict.json")
-    run_time_vs_n_features(path / "time-vs-n-features-prefict.json")
+    run_time_vs_n_features(path / "time-vs-n-features-predict.json")
     run_time_vs_n_samples(path / "time-vs-n-samples-predict.json")
