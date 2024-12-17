@@ -52,6 +52,22 @@ def test_create():
     assert gmm.n_parameters == 17
 
 
+def test_init_incorrect():
+    with pytest.raises(ValueError):
+        GaussianMixtureModelJax(
+            means=jnp.zeros((2, 3)),
+            covariances=jnp.zeros((2, 3, 3)),
+            weights=jnp.zeros((2,)),
+        )
+
+    with pytest.raises(ValueError):
+        GaussianMixtureModelJax(
+            means=jnp.zeros((1, 2, 3, 1)),
+            covariances=jnp.zeros((1, 2, 3, 3)),
+            weights=jnp.zeros((1, 1, 4, 1)),
+        )
+
+
 def test_against_sklearn(gmm_jax):
     x = np.array([
         [1, 2, 3],
