@@ -122,6 +122,11 @@ def test_fit_against_sklearn(gmm_jax, gmm_jax_init):
     gmm_sklearn = gmm_jax_init.to_sklearn(
         warm_start=True, tol=tol, random_state=random_state
     )
+
+    # This brings the sklearn model in the same state as the jax model
+    gmm_sklearn.warm_start = True
+    gmm_sklearn.converged_ = True
+    gmm_sklearn.lower_bound_ = gmm_sklearn._estimate_log_prob(x).sum()
     gmm_sklearn.fit(x)
 
     assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.02)

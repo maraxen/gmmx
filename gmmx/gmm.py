@@ -490,6 +490,9 @@ class GaussianMixtureModelJax:
     def to_sklearn(self, **kwargs: dict) -> Any:
         """Convert to sklearn GaussianMixture
 
+        The methods sets the weights, means, precisions_cholesky and covariances_ attributes,
+        however sklearn will overvwrite them when fitting the model.
+
         Parameters
         ----------
         **kwargs : dict
@@ -508,9 +511,9 @@ class GaussianMixtureModelJax:
             **kwargs,
         )
         gmm.weights_ = self.weights_numpy
-        gmm.covariances_ = self.covariances.values_numpy
         gmm.means_ = self.means_numpy
         gmm.precisions_cholesky_ = self.covariances.precisions_cholesky_numpy
+        gmm.covariances_ = self.covariances.values_numpy
         return gmm
 
     @jax.jit
