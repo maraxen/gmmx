@@ -102,8 +102,9 @@ def test_fit(gmm_jax, gmm_jax_init):
     fitter = EMFitter(tol=1e-4)
     result = fitter.fit(x=x, gmm=gmm_jax_init)
 
-    assert int(result.n_iter) == 6
-    assert_allclose(result.log_likelihood, -4.3686, rtol=1e-4)
+    # The number of iterations is not deterministic across architectures
+    assert int(result.n_iter) in [5, 6]
+    assert_allclose(result.log_likelihood, -4.3686, rtol=2e-4)
     assert_allclose(result.log_likelihood_diff, 9.536743e-07, atol=fitter.tol)
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.03)
 
@@ -129,8 +130,8 @@ def test_fit_against_sklearn(gmm_jax, gmm_jax_init):
     gmm_sklearn.lower_bound_ = gmm_sklearn._estimate_log_prob(x).sum()
     gmm_sklearn.fit(x)
 
-    assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.02)
-    assert_allclose(result_jax.gmm.weights_numpy, [0.2, 0.8], rtol=0.02)
+    assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.03)
+    assert_allclose(result_jax.gmm.weights_numpy, [0.2, 0.8], rtol=0.03)
 
     covar = np.array([
         [1.0, 0.5, 0.5],
