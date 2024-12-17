@@ -48,3 +48,7 @@ Here are some results from the benchmarks in the `benchmarks` folder comparing a
 | ![Time vs. Number of Components](docs/_static/time-vs-n-components-predict.png) | ![Time vs. Number of Samples](docs/_static/time-vs-n-samples-predict.png) | ![Time vs. Number of Features](docs/_static/time-vs-n-features-predict.png) |
 
 ### Training Time
+
+| Time vs. Number of Components                                               | Time vs. Number of Samples                                            | Time vs. Number of Features                                             |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| ![Time vs. Number of Components](docs/_static/time-vs-n-components-fit.png) | ![Time vs. Number of Samples](docs/_static/time-vs-n-samples-fit.png) | ![Time vs. Number of Features](docs/_static/time-vs-n-features-fit.png) |
