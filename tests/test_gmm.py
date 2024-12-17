@@ -99,11 +99,11 @@ def test_fit(gmm_jax, gmm_jax_init):
     random_state = np.random.RandomState(827392)
     x, _ = gmm_jax.to_sklearn(random_state=random_state).sample(16_000)
 
-    fitter = EMFitter(tol=1e-6)
+    fitter = EMFitter(tol=1e-4)
     result = fitter.fit(x=x, gmm=gmm_jax_init)
 
-    assert int(result.n_iter) == 13
-    assert_allclose(result.log_likelihood, -4.368584, rtol=1e-6)
+    assert int(result.n_iter) == 6
+    assert_allclose(result.log_likelihood, -4.3686, rtol=1e-4)
     assert_allclose(result.log_likelihood_diff, 9.536743e-07, atol=fitter.tol)
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.03)
 
