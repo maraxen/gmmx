@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Optional
 
 import jax
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from jax.lib import xla_bridge
 
-from gmmx import GaussianMixtureModelJax
+from gmmx import EMFitter, GaussianMixtureModelJax
 
 INCLUDE_GPU = False
 
@@ -25,11 +26,7 @@ PATH_RESULTS = PATH / "results"
 RANDOM_STATE = np.random.RandomState(817237)
 N_AVERAGE = 10
 DPI = 180
-
-
-N_SAMPLES = 2 ** np.arange(5, 18)
-N_COMPONENTS = 2 ** np.arange(1, 7)
-N_FEATURES = 2 ** np.arange(1, 7)
+KEY = jax.random.PRNGKey(817237)
 
 PATH_TEMPLATE = "{user}-{machine}-{system}-{cpu}-{device-platform}"
 
@@ -91,6 +88,125 @@ class BenchmarkResult:
         with Path(path).open("r") as f:
             data = json.load(f)
         return cls(**data)
+
+
+@dataclass
+class BenchmarkSpec:
+    """Benchmark specification"""
+
+    filename_result: str
+    n_components_grid: Array
+    n_samples_grid: Array
+    n_features_grid: Array
+    x_axis: str
+    title: str
+    func_sklearn: Optional[callable] = None
+    func_jax: Optional[callable] = None
+
+    @property
+    def path(self):
+        """Absolute path to the benchmark result"""
+        return (
+            PATH_RESULTS
+            / PATH_TEMPLATE.format(**get_provenance()["env"])
+            / self.filename_result
+        )
+
+
+def predict_sklearn(gmm, x):
+    """Predict the responsibilities"""
+    return partial(gmm.predict, X=x)
+
+
+def predict_jax(gmm, x):
+    """Measure the time to predict the responsibilities"""
+
+    def func():
+        return gmm.predict(x=x).block_until_ready()
+
+    return func
+
+
+def fit_sklearn(gmm, x):
+    """Measure the time to fit the model"""
+    return partial(gmm.fit, X=x)
+
+
+def fit_jax(gmm, x):
+    """Measure the time to fit the model"""
+
+    def func():
+        fitter = EMFitter()
+        return fitter.fit(x=x, gmm=gmm)
+
+    return func
+
+
+SPECS_PREDICT = [
+    BenchmarkSpec(
+        filename_result="time-vs-n-components-predict.json",
+        n_components_grid=(2 ** np.arange(1, 7)).tolist(),
+        n_samples_grid=[100_000],
+        n_features_grid=[64],
+        x_axis="n_components",
+        title="Time vs Number of components",
+        func_sklearn=predict_sklearn,
+        func_jax=predict_jax,
+    ),
+    BenchmarkSpec(
+        filename_result="time-vs-n-features-predict.json",
+        n_components_grid=[128],
+        n_samples_grid=[100_000],
+        n_features_grid=(2 ** np.arange(1, 7)).tolist(),
+        x_axis="n_features",
+        title="Time vs Number of features",
+        func_sklearn=predict_sklearn,
+        func_jax=predict_jax,
+    ),
+    BenchmarkSpec(
+        filename_result="time-vs-n-samples-predict.json",
+        n_components_grid=[128],
+        n_samples_grid=(2 ** np.arange(5, 18)).tolist(),
+        n_features_grid=[64],
+        x_axis="n_samples",
+        title="Time vs Number of samples",
+        func_sklearn=predict_sklearn,
+        func_jax=predict_jax,
+    ),
+]
+
+SPECS_FIT = [
+    BenchmarkSpec(
+        filename_result="time-vs-n-components-fit.json",
+        n_components_grid=(2 ** np.arange(1, 6)).tolist(),
+        n_samples_grid=[65536],
+        n_features_grid=[32],
+        x_axis="n_components",
+        title="Time vs Number of components",
+        func_sklearn=fit_sklearn,
+        func_jax=fit_jax,
+    ),
+    BenchmarkSpec(
+        filename_result="time-vs-n-features-fit.json",
+        n_components_grid=[64],
+        n_samples_grid=[65536],
+        n_features_grid=(2 ** np.arange(1, 6)).tolist(),
+        x_axis="n_features",
+        title="Time vs Number of features",
+        func_sklearn=fit_sklearn,
+        func_jax=fit_jax,
+    ),
+    BenchmarkSpec(
+        filename_result="time-vs-n-samples-fit.json",
+        n_components_grid=[64],
+        n_samples_grid=(2 ** np.arange(8, 17)).tolist(),
+        n_features_grid=[32],
+        x_axis="n_samples",
+        title="Time vs Number of samples",
+        func_sklearn=fit_sklearn,
+        func_jax=fit_jax,
+    ),
+]
 
 
 def create_random_gmm(n_components, n_features, random_state=RANDOM_STATE, device=None):
@@ -156,30 +272,26 @@ def plot_result(result, x_axis, filename, title=""):
     ax.set_xlabel(x_axis)
     ax.set_ylabel("Time (s)")
     ax.semilogx()
+    ax.semilogy()
     ax.legend()
 
     log.info(f"Writing {filename}")
     plt.savefig(filename, dpi=DPI)
 
 
-def measure_time_predict_sklearn(gmm, x):
-    """Measure the time to predict the responsibilities"""
-    func = partial(gmm.predict, X=x)
+def measure_time(func):
+    """Measure the time to run a function"""
     timer = timeit.Timer(func)
     return timer.timeit(N_AVERAGE)
 
 
-def measure_time_predict_jax(gmm, x):
-    """Measure the time to predict the responsibilities"""
-
-    def func():
-        return gmm.predict(x=x).block_until_ready()
-
-    timer = timeit.Timer(func)
-    return timer.timeit(N_AVERAGE)
-
-
-def measure_time_sklearn_vs_jax(n_components_grid, n_samples_grid, n_features_grid):
+def measure_time_sklearn_vs_jax(
+    n_components_grid,
+    n_samples_grid,
+    n_features_grid,
+    init_func_sklearn=predict_sklearn,
+    init_func_jax=predict_jax,
+):
     """Measure the time to predict the responsibilities for sklearn and jax"""
     time_sklearn, time_jax, time_jax_gpu = [], [], []
 
@@ -190,15 +302,19 @@ def measure_time_sklearn_vs_jax(n_components_grid, n_samples_grid, n_features_gr
             f"Running n_components={n_component}, n_samples={n_samples}, n_features={n_features}"
         )
         gmm = create_random_gmm(n_component, n_features)
-        x = create_random_data(n_samples, n_features)
+        x, _ = gmm.to_sklearn(random_state=RANDOM_STATE).sample(n_samples)
 
-        time_sklearn.append(measure_time_predict_sklearn(gmm.to_sklearn(), x))
-        time_jax.append(measure_time_predict_jax(gmm, x))
+        func_sklearn = init_func_sklearn(gmm.to_sklearn(), x)
+        func_jax = init_func_jax(gmm, jnp.asarray(x))
+
+        time_sklearn.append(measure_time(func_sklearn))
+        time_jax.append(measure_time(func_jax))
 
         if INCLUDE_GPU:
             gmm_gpu = create_random_gmm(n_component, n_features, device="gpu")
             x_gpu = jax.device_put(x, device="gpu")
-            time_jax_gpu.append(measure_time_predict_jax(gmm_gpu, x_gpu))
+            func_jax = predict_jax(gmm_gpu, x_gpu)
+            time_jax_gpu.append(measure_time(func_jax))
 
     return BenchmarkResult(
         n_samples=n_samples_grid,
@@ -210,67 +326,30 @@ def measure_time_sklearn_vs_jax(n_components_grid, n_samples_grid, n_features_gr
     )
 
 
-def run_time_vs_n_components(filename):
-    """Time vs n_components"""
-    if not filename.exists():
+def run_benchmark_from_spec(spec):
+    """Run a benchmark from a specification"""
+    if not spec.path.exists():
         result = measure_time_sklearn_vs_jax(
-            N_COMPONENTS.tolist(), n_samples_grid=[100_000], n_features_grid=[64]
+            spec.n_components_grid,
+            spec.n_samples_grid,
+            spec.n_features_grid,
+            init_func_sklearn=spec.func_sklearn,
+            init_func_jax=spec.func_jax,
         )
-        filename = (
-            PATH_RESULTS / PATH_TEMPLATE.format(**result.provenance["env"]) / filename
-        )
-        log.info(f"Writing {filename}")
-        result.write_json(filename)
+        result.write_json(spec.path)
 
-    result = BenchmarkResult.read(filename)
+    result = BenchmarkResult.read(spec.path)
     plot_result(
         result,
-        x_axis="n_components",
-        filename=filename.with_suffix(".png"),
-        title="Time vs Number of components",
-    )
-
-
-def run_time_vs_n_features(filename):
-    """Time vs n_features"""
-    if not filename.exists():
-        result = measure_time_sklearn_vs_jax(
-            n_components_grid=[128],
-            n_samples_grid=[100_000],
-            n_features_grid=N_FEATURES.tolist(),
-        )
-        result.write_json(filename)
-
-    result = BenchmarkResult.read(filename)
-    plot_result(
-        result,
-        x_axis="n_features",
-        filename=filename.with_suffix(".png"),
-        title="Time vs Number of features",
-    )
-
-
-def run_time_vs_n_samples(filename):
-    """Time vs n_samples"""
-    if not filename.exists():
-        result = measure_time_sklearn_vs_jax(
-            n_components_grid=[128],
-            n_samples_grid=N_SAMPLES.tolist(),
-            n_features_grid=[64],
-        )
-        result.write_json(filename)
-
-    result = BenchmarkResult.read(filename)
-    plot_result(
-        result,
-        x_axis="n_samples",
-        filename=filename.with_suffix(".png"),
-        title="Time vs Number of samples",
+        x_axis=spec.x_axis,
+        filename=spec.path.with_suffix(".png"),
+        title=spec.title,
     )
 
 
 if __name__ == "__main__":
-    path = PATH_RESULTS / PATH_TEMPLATE.format(**get_provenance()["env"])
-    run_time_vs_n_components(path / "time-vs-n-components-predict.json")
-    run_time_vs_n_features(path / "time-vs-n-features-predict.json")
-    run_time_vs_n_samples(path / "time-vs-n-samples-predict.json")
+    for spec in SPECS_PREDICT:
+        run_benchmark_from_spec(spec)
+
+    for spec in SPECS_FIT:
+        run_benchmark_from_spec(spec)
