@@ -58,7 +58,7 @@ Speed up the training of O(10^6) patches was the main motivation for `gmmx`.
 
 ## Benchmarks
 
-Here are some results from the benchmarks in the `benchmarks` folder comparing against Scikit-Learn. The benchmarks were run on a 2021 MacBook Pro with an M1 Pro chip.
+Here are some results from the benchmarks in the [examples/benchmarks](https://github.com/adonath/gmmx/tree/main/examples/benchmarks) folder comparing against Scikit-Learn. The benchmarks were run on a 2021 MacBook Pro with an M1 Pro chip.
 
 ### Prediction
 
