@@ -5,6 +5,7 @@
 [![codecov](https://codecov.io/gh/adonath/gmmx/branch/main/graph/badge.svg)](https://codecov.io/gh/adonath/gmmx)
 [![Commit activity](https://img.shields.io/github/commit-activity/m/adonath/gmmx)](https://img.shields.io/github/commit-activity/m/adonath/gmmx)
 [![License](https://img.shields.io/github/license/adonath/gmmx)](https://img.shields.io/github/license/adonath/gmmx)
+[![DOI](https://zenodo.org/badge/879790145.svg)](https://doi.org/10.5281/zenodo.14515326)
 
 <p align="center">
 <img width="50%" src="docs/_static/gmmx-logo.png" alt="GMMX Logo"/>
@@ -39,6 +40,8 @@ x = gmm.sample(n_samples)
 em_fitter = EMFitter(tol=1e-3, max_iter=100)
 gmm_fitted = em_fitter.fit(x=x, gmm=gmm)
 ```
+
+If you use the code in a scientific publication, please cite the Zenodo DOI from the badge above.
 
 ## Why Gaussian Mixture models?
 
