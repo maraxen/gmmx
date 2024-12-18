@@ -195,8 +195,9 @@ class FullCovariances:
             keepdims=True,
         )
 
+    @classmethod
     def update_parameters(
-        self,
+        cls,
         x: jax.Array,
         means: jax.Array,
         resp: jax.Array,
@@ -228,9 +229,9 @@ class FullCovariances:
         diff = jnp.transpose(diff, axes=axes)
         resp = jnp.transpose(resp, axes=axes)
         values = jnp.matmul(resp * diff, diff.mT) / nk
-        idx = jnp.arange(self.n_features)
+        idx = jnp.arange(x.shape[Axis.features])
         values = values.at[:, :, idx, idx].add(reg_covar)
-        return self.__class__(values=values)
+        return cls(values=values)
 
     @property
     def n_components(self) -> int:
@@ -391,8 +392,13 @@ class GaussianMixtureModelJax:
         covariances = COVARIANCE[covariance_type](values=values)
         return cls(weights=weights, means=means, covariances=covariances)  # type: ignore [arg-type]
 
+    @classmethod
     def update_parameters(
-        self, x: jax.Array, resp: jax.Array, reg_covar: float
+        cls,
+        x: jax.Array,
+        resp: jax.Array,
+        reg_covar: float,
+        covariance_type: CovarianceType = CovarianceType.full,
     ) -> GaussianMixtureModelJax:
         """Update parameters
 
@@ -404,6 +410,8 @@ class GaussianMixtureModelJax:
             Responsibilities
         reg_covar : float
             Regularization for the covariance matrix
+        covariance_type : str, optional
+            Covariance type, by default "full"
 
         Returns
         -------
@@ -412,15 +420,15 @@ class GaussianMixtureModelJax:
         """
         nk = jnp.sum(resp, axis=Axis.batch, keepdims=True)
         means = jnp.matmul(resp.T, x.T.mT).T / nk
-        covariances = self.covariances.update_parameters(
+        covariances = COVARIANCE[covariance_type].update_parameters(
             x=x, means=means, resp=resp, nk=nk, reg_covar=reg_covar
         )
-        return self.__class__(
-            weights=nk / nk.sum(), means=means, covariances=covariances
-        )
+        return cls(weights=nk / nk.sum(), means=means, covariances=covariances)
 
     @classmethod
-    def from_k_means(cls, x: jax.Array, n_components: int) -> None:
+    def from_k_means(
+        cls, x: jax.Array, n_components: int, reg_covar: float = 1e-6, **kwargs
+    ) -> None:
         """Init from k-means clustering
 
         Parameters
@@ -429,13 +437,30 @@ class GaussianMixtureModelJax:
             Feature vectors
         n_components : int
             Number of components
+        reg_covar : float, optional
+            Regularization for the covariance matrix, by default 1e6
+        **kwargs : dict
+            Additional arguments passed to `~sklearn.cluster.KMeans`
 
         Returns
         -------
         gmm : GaussianMixtureModelJax
             Gaussian mixture model instance.
         """
-        raise NotImplementedError
+        from sklearn.cluster import KMeans  # type: ignore [import-untyped]
+
+        n_samples = x.shape[Axis.batch]
+
+        resp = jnp.zeros((n_samples, n_components))
+
+        label = KMeans(n_clusters=n_components, **kwargs).fit(x).labels_
+
+        idx = jnp.arange(n_samples)
+        resp = resp.at[idx, label].set(1.0)
+
+        xp = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
+        resp = jnp.expand_dims(resp, axis=(Axis.features, Axis.features_covar))
+        return cls.update_parameters(xp, resp, reg_covar=reg_covar)
 
     @property
     def n_features(self) -> int:
