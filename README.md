@@ -52,7 +52,10 @@ have a few properties that make them useful in certain scenarios:
 - Their likelihood can be evaluated in closed form, which makes them useful for generative modeling.
 - They are rather fast to train and evaluate.
 
-One of these applications is in the context of image reconstruction, where GMMs can be used to model the distribution and pixel correlations of local (patch based)
+I would strongly recommend to read [In Depth: Gaussian Mixture Models](https://jakevdp.github.io/PythonDataScienceHandbook/05.12-gaussian-mixtures.html) from the Python Data Science Handbook for a more in-depth introduction to GMMs and their
+application as density estimators.
+
+One of these applications in my research is the context of image reconstruction, where GMMs can be used to model the distribution and pixel correlations of local (patch based)
 image features. This can be useful for tasks like image denoising or inpainting. One of these methods I have used them for is [Jolideco](https://github.com/jolideco/jolideco).
 Speed up the training of O(10^6) patches was the main motivation for `gmmx`.
 
