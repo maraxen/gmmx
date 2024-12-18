@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://adonath.github.io/gmmx/"
+Homepage = "https://adonath.github.io/software#gmmx"
 Repository = "https://github.com/adonath/gmmx"
 Documentation = "https://adonath.github.io/gmmx/"
 

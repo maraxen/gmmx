@@ -65,3 +65,5 @@ jobs:
 
       - name: Deploy documentation
         run: uv run mkdocs gh-deploy --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

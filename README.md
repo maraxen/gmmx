@@ -8,7 +8,7 @@
 [![DOI](https://zenodo.org/badge/879790145.svg)](https://doi.org/10.5281/zenodo.14515326)
 
 <p align="center">
-<img width="50%" src="docs/_static/gmmx-logo.png" alt="GMMX Logo"/>
+<img width="50%" src="https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/gmmx-logo.png" alt="GMMX Logo"/>
 </p>
 
 A minimal implementation of Gaussian Mixture Models in Jax
@@ -62,16 +62,16 @@ Here are some results from the benchmarks in the `benchmarks` folder comparing a
 
 ### Prediction
 
-| Time vs. Number of Components                                                   | Time vs. Number of Samples                                                | Time vs. Number of Features                                                 |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| ![Time vs. Number of Components](docs/_static/time-vs-n-components-predict.png) | ![Time vs. Number of Samples](docs/_static/time-vs-n-samples-predict.png) | ![Time vs. Number of Features](docs/_static/time-vs-n-features-predict.png) |
+| Time vs. Number of Components                                                                                                       | Time vs. Number of Samples                                                                                                    | Time vs. Number of Features                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| ![Time vs. Number of Components](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-components-predict.png) | ![Time vs. Number of Samples](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-samples-predict.png) | ![Time vs. Number of Features](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-features-predict.png) |
 
 For prediction the speedup is around 2x for varying number of components and features. For the number of samples the cross-over point is around O(10^4) samples.
 
 ### Training Time
 
-| Time vs. Number of Components                                               | Time vs. Number of Samples                                            | Time vs. Number of Features                                             |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| ![Time vs. Number of Components](docs/_static/time-vs-n-components-fit.png) | ![Time vs. Number of Samples](docs/_static/time-vs-n-samples-fit.png) | ![Time vs. Number of Features](docs/_static/time-vs-n-features-fit.png) |
+| Time vs. Number of Components                                                                                                   | Time vs. Number of Samples                                                                                                | Time vs. Number of Features                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| ![Time vs. Number of Components](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-components-fit.png) | ![Time vs. Number of Samples](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-samples-fit.png) | ![Time vs. Number of Features](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-features-fit.png) |
 
 For training the speedup is around 10x on the same architecture. However there is no guarantee that it will converge to the same solution as Scikit-Learn. But there are some tests in the `tests` folder that compare the results of the two implementations.
