@@ -196,7 +196,7 @@ class FullCovariances:
         )
 
     @classmethod
-    def update_parameters(
+    def from_responsibilities(
         cls,
         x: jax.Array,
         means: jax.Array,
@@ -393,7 +393,7 @@ class GaussianMixtureModelJax:
         return cls(weights=weights, means=means, covariances=covariances)  # type: ignore [arg-type]
 
     @classmethod
-    def update_parameters(
+    def from_responsibilities(
         cls,
         x: jax.Array,
         resp: jax.Array,
@@ -420,14 +420,19 @@ class GaussianMixtureModelJax:
         """
         nk = jnp.sum(resp, axis=Axis.batch, keepdims=True)
         means = jnp.matmul(resp.T, x.T.mT).T / nk
-        covariances = COVARIANCE[covariance_type].update_parameters(
+        covariances = COVARIANCE[covariance_type].from_responsibilities(
             x=x, means=means, resp=resp, nk=nk, reg_covar=reg_covar
         )
         return cls(weights=nk / nk.sum(), means=means, covariances=covariances)
 
     @classmethod
     def from_k_means(
-        cls, x: jax.Array, n_components: int, reg_covar: float = 1e-6, **kwargs
+        cls,
+        x: jax.Array,
+        n_components: int,
+        reg_covar: float = 1e-6,
+        covariance_type: CovarianceType = CovarianceType.full,
+        **kwargs,
     ) -> None:
         """Init from k-means clustering
 
@@ -439,6 +444,8 @@ class GaussianMixtureModelJax:
             Number of components
         reg_covar : float, optional
             Regularization for the covariance matrix, by default 1e6
+        covariance_type : str, optional
+            Covariance type, by default "full"
         **kwargs : dict
             Additional arguments passed to `~sklearn.cluster.KMeans`
 
@@ -460,7 +467,9 @@ class GaussianMixtureModelJax:
 
         xp = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
         resp = jnp.expand_dims(resp, axis=(Axis.features, Axis.features_covar))
-        return cls.update_parameters(xp, resp, reg_covar=reg_covar)
+        return cls.from_responsibilities(
+            xp, resp, reg_covar=reg_covar, covariance_type=covariance_type
+        )
 
     @property
     def n_features(self) -> int:
