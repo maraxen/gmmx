@@ -433,8 +433,8 @@ class GaussianMixtureModelJax:
         n_components: int,
         reg_covar: float = 1e-6,
         covariance_type: CovarianceType = CovarianceType.full,
-        **kwargs,
-    ) -> None:
+        **kwargs: dict,
+    ) -> GaussianMixtureModelJax:
         """Init from k-means clustering
 
         Parameters
