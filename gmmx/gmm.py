@@ -51,7 +51,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, Union
+from typing import Any, ClassVar, Union
 
 import jax
 import numpy as np
@@ -109,6 +109,7 @@ class FullCovariances:
     """
 
     values: jax.Array
+    type: ClassVar[CovarianceType] = CovarianceType.full
 
     def __post_init__(self) -> None:
         check_shape(self.values, (1, None, None, None))
@@ -273,7 +274,7 @@ class FullCovariances:
 
 
 COVARIANCE: dict[CovarianceType, Any] = {
-    CovarianceType.full: FullCovariances,
+    FullCovariances.type: FullCovariances,
 }
 
 # keep this mapping separate, as names in sklearn might change

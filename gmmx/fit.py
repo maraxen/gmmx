@@ -100,7 +100,12 @@ class EMFitter:
             Updated Gaussian mixture model instance.
         """
         x = jnp.expand_dims(x, axis=(Axis.components, Axis.features_covar))
-        return gmm.from_responsibilities(x, jnp.exp(log_resp), reg_covar=self.reg_covar)
+        return gmm.from_responsibilities(
+            x,
+            jnp.exp(log_resp),
+            reg_covar=self.reg_covar,
+            covariance_type=gmm.covariances.type,
+        )
 
     @jax.jit
     def fit(self, x: jax.Array, gmm: GaussianMixtureModelJax) -> EMFitterResult:
