@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 authors:
   - family-names: "Axel"
     given-names: "Donath"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+    orcid: "https://orcid.org/0000-0003-4568-7005"
 title: "GMMX: Gaussian Mixture Models in Jax"
 version: v0.1
 doi: 10.5281/zenodo.14515326
