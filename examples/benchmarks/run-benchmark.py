@@ -19,8 +19,6 @@ from jax.lib import xla_bridge
 
 from gmmx import EMFitter, GaussianMixtureModelJax
 
-INCLUDE_GPU = False
-
 PATH = Path(__file__).parent
 PATH_RESULTS = PATH / "results"
 RANDOM_STATE = np.random.RandomState(817237)
@@ -60,6 +58,16 @@ def get_provenance():
         "env": env,
         "software": software,
     }
+
+
+def gpu_is_available():
+    """Check if a GPU is available"""
+    try:
+        jax.devices("gpu")
+    except RuntimeError:
+        return False
+
+    return True
 
 
 @dataclass
@@ -244,7 +252,7 @@ def get_meta_str(result, x_axis):
         message = f"Invalid x_axis: {x_axis}"
         raise ValueError(message)
 
-    return ", ".join(f"{k}={v}" for k, v in meta.items())
+    return ", ".join(f"{k}={v.item()}" for k, v in meta.items())
 
 
 def plot_result(result, x_axis, filename, title=""):
@@ -265,8 +273,10 @@ def plot_result(result, x_axis, filename, title=""):
 
     if result.time_jax_gpu:
         color = "#E58336"
-        ax.plot(x, result.time_jax_gpu, label=f"jax-gpu ({meta})", color=color)
-        ax.scatter(x, result.time_jax_gpu)
+        ax.plot(
+            x, result.time_jax_gpu, label=f"jax-gpu ({meta})", color=color, zorder=5
+        )
+        ax.scatter(x, result.time_jax_gpu, color=color, zorder=5)
 
     ax.set_title(title)
     ax.set_xlabel(x_axis)
@@ -301,18 +311,20 @@ def measure_time_sklearn_vs_jax(
         log.info(
             f"Running n_components={n_component}, n_samples={n_samples}, n_features={n_features}"
         )
-        gmm = create_random_gmm(n_component, n_features)
+        gmm = create_random_gmm(n_component, n_features, device=jax.devices("cpu")[0])
         x, _ = gmm.to_sklearn(random_state=RANDOM_STATE).sample(n_samples)
 
         func_sklearn = init_func_sklearn(gmm.to_sklearn(), x)
-        func_jax = init_func_jax(gmm, jnp.asarray(x))
+        func_jax = init_func_jax(gmm, jnp.asarray(x, device=jax.devices("cpu")[0]))
 
         time_sklearn.append(measure_time(func_sklearn))
         time_jax.append(measure_time(func_jax))
 
-        if INCLUDE_GPU:
-            gmm_gpu = create_random_gmm(n_component, n_features, device="gpu")
-            x_gpu = jax.device_put(x, device="gpu")
+        if gpu_is_available():
+            gmm_gpu = create_random_gmm(
+                n_component, n_features, device=jax.devices("gpu")[0]
+            )
+            x_gpu = jax.device_put(x, device=jax.devices("gpu")[0])
             func_jax = predict_jax(gmm_gpu, x_gpu)
             time_jax_gpu.append(measure_time(func_jax))
 
