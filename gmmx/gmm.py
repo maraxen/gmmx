@@ -522,7 +522,7 @@ class GaussianMixtureModelJax:
         )
         return value
 
-    def to_sklearn(self, **kwargs: dict) -> Any:
+    def to_sklearn(self, **kwargs: dict[str, Any]) -> Any:
         """Convert to sklearn GaussianMixture
 
         The methods sets the weights, means, precisions_cholesky and covariances_ attributes,
@@ -540,7 +540,7 @@ class GaussianMixtureModelJax:
         """
         from sklearn.mixture import GaussianMixture  # type: ignore [import-untyped]
 
-        kwargs.setdefault("warm_start", True)
+        kwargs.setdefault("warm_start", True)  # type: ignore [arg-type]
         gmm = GaussianMixture(
             n_components=self.n_components,
             covariance_type=SKLEARN_COVARIANCE_TYPE[type(self.covariances)],
