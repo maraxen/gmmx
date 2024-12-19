@@ -26,6 +26,9 @@ N_AVERAGE = 10
 DPI = 180
 KEY = jax.random.PRNGKey(817237)
 
+MAX_ITER = 20
+TOL = 0
+
 PATH_TEMPLATE = "{user}-{machine}-{system}-{cpu}-{device-platform}"
 
 
@@ -144,7 +147,7 @@ def fit_jax(gmm, x):
     """Measure the time to fit the model"""
 
     def func():
-        fitter = EMFitter()
+        fitter = EMFitter(tol=TOL, max_iter=MAX_ITER)
         return fitter.fit(x=x, gmm=gmm)
 
     return func
@@ -320,7 +323,7 @@ def measure_time_sklearn_vs_jax(
         gmm = create_random_gmm(n_component, n_features, device=jax.devices("cpu")[0])
         x, _ = gmm.to_sklearn(random_state=RANDOM_STATE).sample(n_samples)
 
-        func_sklearn = init_func_sklearn(gmm.to_sklearn(), x)
+        func_sklearn = init_func_sklearn(gmm.to_sklearn(tol=TOL, max_iter=MAX_ITER), x)
         func_jax = init_func_jax(gmm, jax.device_put(x, device=jax.devices("cpu")[0]))
 
         time_sklearn.append(measure_time(func_sklearn))
