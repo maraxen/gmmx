@@ -252,7 +252,7 @@ def get_meta_str(result, x_axis):
         message = f"Invalid x_axis: {x_axis}"
         raise ValueError(message)
 
-    return ", ".join(f"{k}={v.item()}" for k, v in meta.items())
+    return ", ".join(f"{k}={v[0]}" for k, v in meta.items())
 
 
 def plot_result(result, x_axis, filename, title=""):
