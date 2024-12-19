@@ -132,21 +132,19 @@ def test_fit_against_sklearn(gmm_jax, gmm_jax_init):
     random_state = np.random.RandomState(82792)
     x, _ = gmm_jax.to_sklearn(random_state=random_state).sample(16_000)
 
-    tol = 1e-12
+    tol = 1e-6
     fitter = EMFitter(tol=tol)
     result_jax = fitter.fit(x=x, gmm=gmm_jax_init)
 
-    gmm_sklearn = gmm_jax_init.to_sklearn(
-        warm_start=True, tol=tol, random_state=random_state
-    )
+    gmm_sklearn = gmm_jax_init.to_sklearn(tol=tol, random_state=random_state)
 
     # This brings the sklearn model in the same state as the jax model
-    gmm_sklearn.warm_start = True
-    gmm_sklearn.converged_ = True
-    gmm_sklearn.lower_bound_ = gmm_sklearn._estimate_log_prob(x).sum()
     gmm_sklearn.fit(x)
 
+    assert_allclose(gmm_sklearn.n_iter_, 15)
     assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.03)
+
+    assert_allclose(result_jax.n_iter, 15)
     assert_allclose(result_jax.gmm.weights_numpy, [0.2, 0.8], rtol=0.03)
 
     covar = np.array([
