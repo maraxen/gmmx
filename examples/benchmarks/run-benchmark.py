@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Optional
 
 import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from jax.lib import xla_bridge
+from scipy import stats
 
 from gmmx import EMFitter, GaussianMixtureModelJax
 
@@ -221,8 +221,14 @@ def create_random_gmm(n_components, n_features, random_state=RANDOM_STATE, devic
     """Create a random Gaussian mixture model"""
     means = random_state.uniform(-10, 10, (n_components, n_features))
 
-    values = random_state.uniform(0, 1, (n_components, n_features, n_features))
-    covariances = np.matmul(values, values.mT)
+    # the whishart distribution creates a positive semi-definite matrix
+    covariances = stats.wishart.rvs(
+        df=n_features,
+        scale=np.eye(n_features) / n_features,
+        size=n_components,
+        random_state=random_state,
+    )
+
     weights = random_state.uniform(0, 1, n_components)
     weights /= weights.sum()
 
@@ -315,7 +321,7 @@ def measure_time_sklearn_vs_jax(
         x, _ = gmm.to_sklearn(random_state=RANDOM_STATE).sample(n_samples)
 
         func_sklearn = init_func_sklearn(gmm.to_sklearn(), x)
-        func_jax = init_func_jax(gmm, jnp.asarray(x, device=jax.devices("cpu")[0]))
+        func_jax = init_func_jax(gmm, jax.device_put(x, device=jax.devices("cpu")[0]))
 
         time_sklearn.append(measure_time(func_sklearn))
         time_jax.append(measure_time(func_jax))
