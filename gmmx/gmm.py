@@ -540,11 +540,15 @@ class GaussianMixtureModelJax:
         """
         from sklearn.mixture import GaussianMixture  # type: ignore [import-untyped]
 
+        kwargs.setdefault("warm_start", True)
         gmm = GaussianMixture(
             n_components=self.n_components,
             covariance_type=SKLEARN_COVARIANCE_TYPE[type(self.covariances)],
             **kwargs,
         )
+        # This does a warm start at the given parameters
+        gmm.converged_ = True
+        gmm.lower_bound_ = -np.inf
         gmm.weights_ = self.weights_numpy
         gmm.means_ = self.means_numpy
         gmm.precisions_cholesky_ = self.covariances.precisions_cholesky_numpy
