@@ -69,7 +69,7 @@ Here are some results from the benchmarks in the [examples/benchmarks](https://g
 | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | ![Time vs. Number of Components](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-components-predict.png) | ![Time vs. Number of Samples](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-samples-predict.png) | ![Time vs. Number of Features](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-features-predict.png) |
 
-For prediction the speedup is around 2-3x for varying number of components and features. For the number of samples the cross-over point is around O(10^4) samples.
+For prediction the speedup is around 5-6x for varying number of components and features and ~50x speedup on the GPU. For the number of samples the cross-over point is around O(10^3) samples.
 
 ### Training Time
 
@@ -77,4 +77,4 @@ For prediction the speedup is around 2-3x for varying number of components and f
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | ![Time vs. Number of Components](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-components-fit.png) | ![Time vs. Number of Samples](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-samples-fit.png) | ![Time vs. Number of Features](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-features-fit.png) |
 
-For training the speedup is around >10x on the same architecture and close to 100x speedup on the GPU. However there is no guarantee that it will converge to the same solution as Scikit-Learn. But there are some tests in the `tests` folder that compare the results of the two implementations which shows good agreement.
+For training the speedup is around ~5-6x on the same architecture and ~50x speedup on the GPU. However there is no guarantee that it will converge to the same solution as Scikit-Learn. But there are some tests in the `tests` folder that compare the results of the two implementations which shows good agreement.
