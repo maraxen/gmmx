@@ -19,12 +19,15 @@ from scipy import stats
 
 from gmmx import EMFitter, GaussianMixtureModelJax
 
+jax.config.update("jax_enable_x64", True)
+
+
 PATH = Path(__file__).parent
 PATH_RESULTS = PATH / "results"
-RANDOM_STATE = np.random.RandomState(817237)
+RANDOM_STATE = np.random.RandomState(81737)
 N_AVERAGE = 10
 DPI = 180
-KEY = jax.random.PRNGKey(817237)
+KEY = jax.random.PRNGKey(81737)
 
 MAX_ITER = 20
 TOL = 0
@@ -140,7 +143,12 @@ def predict_jax(gmm, x):
 
 def fit_sklearn(gmm, x):
     """Measure the time to fit the model"""
-    return partial(gmm.fit, X=x)
+
+    def func():
+        result = gmm.fit(x)
+        return result
+
+    return func
 
 
 def fit_jax(gmm, x):
@@ -148,7 +156,8 @@ def fit_jax(gmm, x):
 
     def func():
         fitter = EMFitter(tol=TOL, max_iter=MAX_ITER)
-        return fitter.fit(x=x, gmm=gmm)
+        result = fitter.fit(x=x, gmm=gmm)
+        return result
 
     return func
 
