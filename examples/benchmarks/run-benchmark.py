@@ -334,7 +334,7 @@ def measure_time_sklearn_vs_jax(
                 n_component, n_features, device=jax.devices("gpu")[0]
             )
             x_gpu = jax.device_put(x, device=jax.devices("gpu")[0])
-            func_jax = predict_jax(gmm_gpu, x_gpu)
+            func_jax = init_func_jax(gmm_gpu, x_gpu)
             time_jax_gpu.append(measure_time(func_jax))
 
     return BenchmarkResult(

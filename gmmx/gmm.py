@@ -349,11 +349,13 @@ class GaussianMixtureModelJax:
 
         weights = jnp.ones((1, n_components, 1, 1)) / n_components
         means = jnp.zeros((1, n_components, n_features, 1))
-        covariances = COVARIANCE[covariance_type].create(n_components, n_features)
+        covariances = COVARIANCE[covariance_type].create(
+            n_components, n_features, device=device
+        )
         return cls(
             weights=jax.device_put(weights, device=device),
             means=jax.device_put(means, device=device),
-            covariances=jax.device_put(covariances, device=device),
+            covariances=covariances,
         )
 
     @classmethod
