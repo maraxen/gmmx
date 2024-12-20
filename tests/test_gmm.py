@@ -119,7 +119,7 @@ def test_fit(gmm_jax, gmm_jax_init):
     result = fitter.fit(x=x, gmm=gmm_jax_init)
 
     # The number of iterations is not deterministic across architectures
-    assert int(result.n_iter) in [6, 7]
+    assert int(result.n_iter) in [5, 6]
     assert_allclose(result.log_likelihood, -4.3686, rtol=2e-4)
     assert_allclose(result.log_likelihood_diff, 9.536743e-07, atol=fitter.tol)
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.03)
