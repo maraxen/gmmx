@@ -144,7 +144,7 @@ class EMFitter:
         ) -> jax.Array:
             """EM stop condition function"""
             _, _, n_iter, _, log_likelihood_diff = args
-            return (n_iter < self.max_iter) & (log_likelihood_diff > self.tol)
+            return (n_iter < self.max_iter) & (log_likelihood_diff >= self.tol)
 
         result = jax.lax.while_loop(
             cond_fun=em_cond,

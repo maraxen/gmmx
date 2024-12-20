@@ -421,7 +421,10 @@ class GaussianMixtureModelJax:
         gmm : GaussianMixtureModelJax
             Updated Gaussian mixture model
         """
-        nk = jnp.sum(resp, axis=Axis.batch, keepdims=True)
+        nk = (
+            jnp.sum(resp, axis=Axis.batch, keepdims=True)
+            + 10 * jnp.finfo(resp.dtype).eps
+        )
         means = jnp.matmul(resp.T, x.T.mT).T / nk
         covariances = COVARIANCE[covariance_type].from_responsibilities(
             x=x, means=means, resp=resp, nk=nk, reg_covar=reg_covar
