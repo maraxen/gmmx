@@ -63,7 +63,7 @@ Speed up the training of O(10^6) patches was the main motivation for `gmmx`.
 
 Here are some results from the benchmarks in the [examples/benchmarks](https://github.com/adonath/gmmx/tree/main/examples/benchmarks) folder comparing against Scikit-Learn. The benchmarks were run on an "Intel(R) Xeon(R) Gold 6338" CPU and a single "NVIDIA L40S" GPU.
 
-### Prediction
+### Prediction Time
 
 | Time vs. Number of Components                                                                                                       | Time vs. Number of Samples                                                                                                    | Time vs. Number of Features                                                                                                     |
 | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -77,4 +77,4 @@ For prediction the speedup is around 5-6x for varying number of components and f
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | ![Time vs. Number of Components](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-components-fit.png) | ![Time vs. Number of Samples](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-samples-fit.png) | ![Time vs. Number of Features](https://raw.githubusercontent.com/adonath/gmmx/main/docs/_static/time-vs-n-features-fit.png) |
 
-For training the speedup is around ~5-6x on the same architecture and ~50x speedup on the GPU. However there is no guarantee that it will converge to the same solution as Scikit-Learn. But there are some tests in the `tests` folder that compare the results of the two implementations which shows good agreement.
+For training the speedup is around ~5-6x on the same architecture and ~50x speedup on the GPU. In the bechmark I have forced both fitters to evaluate exactly the same number of iterations. However in general there is no guarantee that GMMX converges to the same solution as Scikit-Learn. But there are some tests in the `tests` folder that compare the results of the two implementations which shows good agreement.
