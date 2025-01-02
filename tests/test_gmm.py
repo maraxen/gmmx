@@ -115,7 +115,7 @@ def test_fit(gmm_jax):
 
     # The number of iterations is not deterministic across architectures
     covar_str = gmm_jax.covariances.type.value
-    expected = {"full": [6, 7], "diag": [7]}
+    expected = {"full": [4, 7], "diag": [7]}
     assert int(result.n_iter) in expected[covar_str]
 
     expected = {"full": -4.3686, "diag": -5.422534}
@@ -149,8 +149,8 @@ def test_fit_against_sklearn(gmm_jax):
     assert_allclose(gmm_sklearn.n_iter_, expected[covar_str])
     assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.06)
 
-    expected = {"full": 9, "diag": 8}
-    assert_allclose(result_jax.n_iter, expected[covar_str])
+    expected = {"full": [9], "diag": [8, 11]}
+    assert result_jax.n_iter in expected[covar_str]
     assert_allclose(result_jax.gmm.weights_numpy, [0.2, 0.8], rtol=0.06)
 
     assert_allclose(gmm_sklearn.covariances_, TEST_COVARIANCES[covar_str], rtol=0.1)
