@@ -60,7 +60,13 @@ from jax import scipy as jsp
 
 from gmmx.utils import register_dataclass_jax
 
-__all__ = ["FullCovariances", "GaussianMixtureModelJax"]
+__all__ = [
+    "Axis",
+    "CovarianceType",
+    "DiagCovariances",
+    "FullCovariances",
+    "GaussianMixtureModelJax",
+]
 
 
 AnyArray = Union[np.ndarray, jax.Array]
@@ -71,9 +77,7 @@ class CovarianceType(str, Enum):
     """Convariance type"""
 
     full = "full"
-    tied = "tied"
     diag = "diag"
-    spherical = "spherical"
 
 
 class Axis(int, Enum):
@@ -128,12 +132,21 @@ class FullCovariances:
         covariances : FullCovariances
             Covariance matrix instance.
         """
+        if values.ndim != 3:
+            message = f"Expected array of shape (n_components, n_features, n_features), got {values.shape}"
+            raise ValueError(message)
+
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
 
     @property
     def values_numpy(self) -> np.ndarray:
         """Covariance as numpy array"""
         return np.squeeze(np.asarray(self.values), axis=Axis.batch)
+
+    @property
+    def values_dense(self) -> jax.Array:
+        """Covariance as dense matrix"""
+        return self.values
 
     @property
     def precisions_cholesky_numpy(self) -> np.ndarray:
@@ -273,12 +286,144 @@ class FullCovariances:
         return precisions_chol.mT
 
 
+@register_dataclass_jax(data_fields=["values"])
+@dataclass
+class DiagCovariances:
+    """Diagonal covariance matrices"""
+
+    values: jax.Array
+    type: ClassVar[CovarianceType] = CovarianceType.diag
+
+    def __post_init__(self) -> None:
+        check_shape(self.values, (1, None, None, 1))
+
+    @property
+    def values_dense(self):
+        """Covariance as dense matrix"""
+        values = jnp.zeros((1, self.n_components, self.n_features, self.n_features))
+        idx = jnp.arange(self.n_features)
+        covar_diag = jnp.squeeze(self.values, axis=(Axis.batch, Axis.features_covar))
+        return values.at[:, :, idx, idx].set(covar_diag)
+
+    @classmethod
+    def from_squeezed(cls, values: AnyArray) -> DiagCovariances:
+        """Create a diagonal covariance matrix from squeezed array
+
+        Parameters
+        ----------
+        values : jax.Array ot np.array
+            Covariance values. Expected shape is (n_components, n_features)
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Covariance matrix instance.
+        """
+        if values.ndim != 2:
+            message = f"Expected array of shape (n_components, n_features), got {values.shape}"
+            raise ValueError(message)
+
+        return cls(
+            values=jnp.expand_dims(values, axis=(Axis.batch, Axis.features_covar))
+        )
+
+    @property
+    def n_components(self) -> int:
+        """Number of components"""
+        return self.values.shape[Axis.components]
+
+    @property
+    def n_features(self) -> int:
+        """Number of features"""
+        return self.values.shape[Axis.features]
+
+    @property
+    def n_parameters(self) -> int:
+        """Number of parameters"""
+        return int(self.n_components * self.n_features)
+
+    @classmethod
+    def from_responsibilities(
+        cls,
+        x: jax.Array,
+        means: jax.Array,
+        resp: jax.Array,
+        nk: jax.Array,
+        reg_covar: float,
+    ) -> DiagCovariances:
+        """Estimate updated covariance matrix from data
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+        means : jax.array
+            Means of the components
+        resp : jax.array
+            Responsibilities
+        nk : jax.array
+            Number of samples in each component
+        reg_covar : float
+            Regularization for the covariance matrix
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Updated covariance matrix instance.
+        """
+        x_squared_mean = jnp.sum(resp * x**2, axis=Axis.components, keepdims=True) / nk
+        return x_squared_mean - means**2 + reg_covar
+
+    @property
+    def precisions_cholesky_sparse(self):
+        """Compute precision matrices"""
+        return jnp.sqrt(1.0 / self.values).mT
+
+    @property
+    def precisions_cholesky_numpy(self) -> np.ndarray:
+        """Compute precision matrices"""
+        return np.squeeze(
+            np.asarray(self.precisions_cholesky_sparse),
+            axis=(Axis.batch, Axis.features),
+        )
+
+    @property
+    def values_numpy(self) -> np.ndarray:
+        """Covariance as numpy array"""
+        return np.squeeze(
+            np.asarray(self.values), axis=(Axis.batch, Axis.features_covar)
+        )
+
+    @property
+    def log_det_cholesky(self) -> jax.Array:
+        """Log determinant of the cholesky decomposition"""
+        return jnp.sum(
+            jnp.log(self.precisions_cholesky_sparse),
+            axis=(Axis.features, Axis.features_covar),
+            keepdims=True,
+        )
+
+    def log_prob(self, x: jax.Array, means: jax.Array) -> jax.Array:
+        """Compute log likelihood from the covariance for a given feature vector"""
+        precisions_cholesky = self.precisions_cholesky_sparse
+        y = (x.mT * precisions_cholesky) - (means.mT * precisions_cholesky)
+        return jnp.sum(
+            jnp.square(y),
+            axis=(Axis.features, Axis.features_covar),
+            keepdims=True,
+        )
+
+
 COVARIANCE: dict[CovarianceType, Any] = {
     FullCovariances.type: FullCovariances,
+    DiagCovariances.type: DiagCovariances,
 }
 
 # keep this mapping separate, as names in sklearn might change
-SKLEARN_COVARIANCE_TYPE: dict[Any, str] = {FullCovariances: "full"}
+SKLEARN_COVARIANCE_TYPE: dict[Any, str] = {
+    FullCovariances: "full",
+    DiagCovariances: "diag",
+}
 
 
 @register_dataclass_jax(data_fields=["weights", "means", "covariances"])
@@ -391,8 +536,7 @@ class GaussianMixtureModelJax:
             weights, axis=(Axis.batch, Axis.features, Axis.features_covar)
         )
 
-        values = jnp.expand_dims(covariances, axis=Axis.batch)
-        covariances = COVARIANCE[covariance_type](values=values)
+        covariances = COVARIANCE[covariance_type].from_squeezed(values=covariances)
         return cls(weights=weights, means=means, covariances=covariances)  # type: ignore [arg-type]
 
     @classmethod
@@ -421,6 +565,8 @@ class GaussianMixtureModelJax:
         gmm : GaussianMixtureModelJax
             Updated Gaussian mixture model
         """
+        covariance_type = CovarianceType(covariance_type)
+
         nk = (
             jnp.sum(resp, axis=Axis.batch, keepdims=True)
             + 10 * jnp.finfo(resp.dtype).eps
@@ -603,9 +749,12 @@ class GaussianMixtureModelJax:
             shape=(n_samples,),
         )
 
-        # TODO: this blows up the memory, as the arrays are copied
+        # TODO: this blows up the memory, as the arrays are copied, however
+        # there is no simple way to handle the varying numbers of samples per component
+        # Jax does not support ragged arrays and the size parameter in random methods has
+        # to be static
         means = jnp.take(self.means, selected, axis=Axis.components)
-        covar = jnp.take(self.covariances.values, selected, axis=Axis.components)
+        covar = jnp.take(self.covariances.values_dense, selected, axis=Axis.components)
 
         samples = jax.random.multivariate_normal(
             subkey,
