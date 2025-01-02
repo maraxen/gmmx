@@ -91,6 +91,10 @@ class Axis(int, Enum):
 
 def check_shape(array: jax.Array, expected: tuple[int | None, ...]) -> None:
     """Check shape of array"""
+    if array.dtype != jnp.float32:
+        message = f"Expected float32, got {array.dtype}"
+        raise ValueError(message)
+
     if len(array.shape) != len(expected):
         message = f"Expected shape {expected}, got {array.shape}"
         raise ValueError(message)
@@ -371,8 +375,9 @@ class DiagCovariances:
         covariances : FullCovariances
             Updated covariance matrix instance.
         """
-        x_squared_mean = jnp.sum(resp * x**2, axis=Axis.components, keepdims=True) / nk
-        return x_squared_mean - means**2 + reg_covar
+        x_squared_mean = jnp.sum(resp * x**2, axis=Axis.batch, keepdims=True) / nk
+        values = x_squared_mean - means**2 + reg_covar
+        return cls(values=values)
 
     @property
     def precisions_cholesky_sparse(self):
@@ -567,6 +572,7 @@ class GaussianMixtureModelJax:
         """
         covariance_type = CovarianceType(covariance_type)
 
+        # I don't like the hard-coded 10 here, but it is the same as in sklearn
         nk = (
             jnp.sum(resp, axis=Axis.batch, keepdims=True)
             + 10 * jnp.finfo(resp.dtype).eps
@@ -752,7 +758,8 @@ class GaussianMixtureModelJax:
         # TODO: this blows up the memory, as the arrays are copied, however
         # there is no simple way to handle the varying numbers of samples per component
         # Jax does not support ragged arrays and the size parameter in random methods has
-        # to be static
+        # to be static. One possibility would be to pad the arrays to the maximum number
+        # of samples per component, however this might be inefficient as well.
         means = jnp.take(self.means, selected, axis=Axis.components)
         covar = jnp.take(self.covariances.values_dense, selected, axis=Axis.components)
 
