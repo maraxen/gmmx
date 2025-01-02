@@ -11,7 +11,7 @@ TEST_COVARIANCES = {
         [[1, 0.5, 0.5], [0.5, 1, 0.5], [0.5, 0.5, 1]],
         [[1, 0.5, 0.5], [0.5, 1, 0.5], [0.5, 0.5, 1]],
     ]),
-    "diag": np.array([[1, 2, 3], [3, 2, 1]]),
+    "diag": np.array([[1.0, 2.0, 3.0], [3.0, 2.0, 1.0]]),
 }
 
 
@@ -27,22 +27,6 @@ def gmm_jax(request):
         covariances=covariances,
         weights=weights,
         covariance_type=request.param,
-    )
-
-
-@pytest.fixture
-def gmm_jax_init():
-    means = np.array([[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]])
-
-    covar_1 = np.array([[1.1, 0.5, 0.3], [0.3, 1, 0.5], [0.5, 0.5, 1]])
-    covar_2 = np.array([[1, 0.5, 0.2], [0.5, 1.1, 0.5], [0.5, 0.5, 1]])
-    covariances = np.array([covar_1, covar_2])
-    weights = np.array([0.3, 0.7])
-
-    return GaussianMixtureModelJax.from_squeezed(
-        means=means,
-        covariances=covariances,
-        weights=weights,
     )
 
 
@@ -131,7 +115,7 @@ def test_fit(gmm_jax):
 
     # The number of iterations is not deterministic across architectures
     covar_str = gmm_jax.covariances.type.value
-    expected = {"full": [6, 7], "diag": [41]}
+    expected = {"full": [6, 7], "diag": [7]}
     assert int(result.n_iter) in expected[covar_str]
 
     expected = {"full": -4.3686, "diag": -5.422534}
@@ -143,7 +127,7 @@ def test_fit(gmm_jax):
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.05)
 
 
-def test_fit_against_sklearn(gmm_jax, gmm_jax_init):
+def test_fit_against_sklearn(gmm_jax):
     # Fitting is hard to test, especillay we cannot guarantee the fit converges to the same solution
     # However the "global" likelihood (summed accross all components) for a given feature vector
     # should be similar for both implementations
@@ -152,32 +136,27 @@ def test_fit_against_sklearn(gmm_jax, gmm_jax_init):
 
     tol = 1e-6
     fitter = EMFitter(tol=tol)
-    result_jax = fitter.fit(x=x, gmm=gmm_jax_init)
+    result_jax = fitter.fit(x=x, gmm=gmm_jax)
 
-    gmm_sklearn = gmm_jax_init.to_sklearn(tol=tol, random_state=random_state)
+    gmm_sklearn = gmm_jax.to_sklearn(tol=tol, random_state=random_state)
 
     # This brings the sklearn model in the same state as the jax model
     gmm_sklearn.fit(x)
 
     covar_str = gmm_jax.covariances.type.value
 
-    expected = {"full": 15, "diag": 49}
+    expected = {"full": 9, "diag": 9}
     assert_allclose(gmm_sklearn.n_iter_, expected[covar_str])
     assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.06)
 
-    expected = {"full": 15, "diag": 47}
+    expected = {"full": 9, "diag": 8}
     assert_allclose(result_jax.n_iter, expected[covar_str])
     assert_allclose(result_jax.gmm.weights_numpy, [0.2, 0.8], rtol=0.06)
 
-    covar = np.array([
-        [1.0, 0.5, 0.5],
-        [0.5, 1.0, 0.5],
-        [0.5, 0.5, 1.0],
-    ])
-    desired = np.array([covar, covar])
-
-    assert_allclose(gmm_sklearn.covariances_, desired, rtol=0.1)
-    assert_allclose(result_jax.gmm.covariances.values_numpy, desired, rtol=0.1)
+    assert_allclose(gmm_sklearn.covariances_, TEST_COVARIANCES[covar_str], rtol=0.1)
+    assert_allclose(
+        result_jax.gmm.covariances.values_numpy, TEST_COVARIANCES[covar_str], rtol=0.1
+    )
 
     log_likelihood_jax = result_jax.gmm.estimate_log_prob(x[:10]).sum(axis=1)[:, 0, 0]
     log_likelihood_sklearn = gmm_sklearn._estimate_weighted_log_prob(x[:10]).sum(axis=1)

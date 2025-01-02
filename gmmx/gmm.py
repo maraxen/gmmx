@@ -302,7 +302,7 @@ class DiagCovariances:
         check_shape(self.values, (1, None, None, 1))
 
     @property
-    def values_dense(self):
+    def values_dense(self) -> jax.Array:
         """Covariance as dense matrix"""
         values = jnp.zeros((1, self.n_components, self.n_features, self.n_features))
         idx = jnp.arange(self.n_features)
@@ -380,7 +380,7 @@ class DiagCovariances:
         return cls(values=values)
 
     @property
-    def precisions_cholesky_sparse(self):
+    def precisions_cholesky_sparse(self) -> jax.Array:
         """Compute precision matrices"""
         return jnp.sqrt(1.0 / self.values).mT
 
