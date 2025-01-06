@@ -58,7 +58,6 @@ import numpy as np
 from jax import numpy as jnp
 from jax import scipy as jsp
 
-from gmmx.fit import EMFitter
 from gmmx.utils import register_dataclass_jax
 
 __all__ = [
@@ -67,6 +66,7 @@ __all__ = [
     "DiagCovariances",
     "FullCovariances",
     "GaussianMixtureModelJax",
+    "GaussianMixtureSKLearn",
 ]
 
 
@@ -515,7 +515,7 @@ class GaussianMixtureModelJax:
         means: AnyArray,
         covariances: AnyArray,
         weights: AnyArray,
-        covariance_type: CovarianceType = CovarianceType.full,
+        covariance_type: CovarianceType | str = CovarianceType.full,
     ) -> GaussianMixtureModelJax:
         """Create a Jax GMM from squeezed arrays
 
@@ -587,7 +587,7 @@ class GaussianMixtureModelJax:
     @classmethod
     def from_k_means(
         cls,
-        x: jax.Array,
+        x: AnyArray,
         n_components: int,
         reg_covar: float = 1e-6,
         covariance_type: CovarianceType = CovarianceType.full,
@@ -619,6 +619,7 @@ class GaussianMixtureModelJax:
 
         resp = jnp.zeros((n_samples, n_components))
 
+        kwargs.setdefault("n_init", 10)  # type: ignore [arg-type]
         label = KMeans(n_clusters=n_components, **kwargs).fit(x).labels_
 
         idx = jnp.arange(n_samples)
@@ -865,7 +866,9 @@ class GaussianMixtureModelJax:
         return samples
 
 
-def check_model_fitted(instance) -> GaussianMixtureModelJax:
+def check_model_fitted(
+    instance: GaussianMixtureSKLearn,
+) -> GaussianMixtureModelJax:
     """Check if the model is fitted"""
     if instance._gmm is None:
         message = "Model not initialized. Call `fit` first."
@@ -874,8 +877,13 @@ def check_model_fitted(instance) -> GaussianMixtureModelJax:
     return instance._gmm
 
 
+INIT_METHODS = {
+    "kmeans": GaussianMixtureModelJax.from_k_means,
+}
+
+
 @dataclass
-class GaussianMixture:
+class GaussianMixtureSKLearn:
     """Scikit learn compatibile API for Gaussian Mixture Model
 
     See docs at https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
@@ -891,9 +899,17 @@ class GaussianMixture:
     weights_init: AnyArray | None = None
     means_init: AnyArray | None = None
     precisions_init: AnyArray | None = None
-    random_state: int | None = None
+    random_state: np.random.RandomState | None = None
     warm_start: bool = False
     _gmm: GaussianMixtureModelJax | None = field(init=False, repr=False, default=None)
+
+    def __post_init__(self) -> None:
+        from sklearn.utils import check_random_state  # type: ignore [import-untyped]
+
+        if self.n_init > 1:
+            raise NotImplementedError("n_init > 1 is not supported yet.")
+
+        self.random_state = check_random_state(self.random_state)
 
     @property
     def weights_(self) -> AnyArray:
@@ -915,23 +931,36 @@ class GaussianMixture:
         """Covariances of each component"""
         return check_model_fitted(self).covariances.values_numpy
 
-    def fit(self, X):
-        """Fit the model"""
-        if self.init_params == "kmeans":
-            self._gmm_state = GaussianMixtureModelJax.from_k_means(
-                x=X,
-                n_components=self.n_components,
-                reg_covar=self.reg_covar,
-                covariance_type=self.covariance_type,
-                random_state=self.random_state,
-            )
+    def _initialize_gmm(self, x: AnyArray) -> None:
+        init_from_data = (
+            self.weights_init is None
+            or self.means_init is None
+            or self.precisions_init is None
+        )
+
+        if init_from_data:
+            kwargs = {
+                "x": x,
+                "n_components": self.n_components,
+                "covariance_type": self.covariance_type,
+            }
+            self._gmm = INIT_METHODS[self.init_params](**kwargs)  # type: ignore [arg-type]
         else:
-            self._gmm_state = GaussianMixtureModelJax.from_squeezed(
-                means=self.means_init,
-                covariances=self.precisions_init,
-                weights=self.weights_init,
+            self._gmm = GaussianMixtureModelJax.from_squeezed(
+                means=self.means_init,  # type: ignore [arg-type]
+                covariances=jnp.linalg.inv(self.precisions_init),
+                weights=self.weights_init,  # type: ignore [arg-type]
                 covariance_type=self.covariance_type,
             )
+
+    def fit(self, X: AnyArray) -> GaussianMixtureSKLearn:
+        """Fit the model"""
+        from gmmx.fit import EMFitter
+
+        do_init = not (self.warm_start and hasattr(self, "converged_"))
+
+        if do_init:
+            self._initialize_gmm(x=X)
 
         fitter = EMFitter(
             tol=self.tol,
@@ -939,38 +968,39 @@ class GaussianMixture:
             max_iter=self.max_iter,
         )
         result = fitter.fit(X, self._gmm)
-        self._gmm_state = result.gmm
+        self._gmm = result.gmm
         self.converged_ = result.converged
+        return self
 
-    def predict(self, X):
+    def predict(self, X: AnyArray) -> np.ndarray:
         """Predict the component index for each sample"""
         return np.asarray(check_model_fitted(self).predict(X))
 
-    def fit_predict(self):
+    def fit_predict(self) -> np.ndarray:
         """Fit the model and predict the component index for each sample"""
         raise NotImplementedError
 
-    def predict_proba(self, X):
+    def predict_proba(self, X: AnyArray) -> np.ndarray:
         """Predict the probability of each sample belonging to each component"""
         return np.asarray(check_model_fitted(self).predict_proba(X))
 
-    def sample(self, n_samples):
+    def sample(self, n_samples: int) -> np.ndarray:
         """Sample from the model"""
-        key = jax.random.PRNGKey(self.random_state.randint(2**32 - 1))
+        key = jax.random.key(self.random_state.randint(2**32 - 1))  # type: ignore [union-attr]
         return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
 
-    def score(self, X):
+    def score(self, X: AnyArray) -> np.ndarray:
         """Compute the log likelihood of the data"""
         return np.asarray(check_model_fitted(self).score(X))
 
-    def score_samples(self, X):
+    def score_samples(self, X: AnyArray) -> np.ndarray:
         """Compute the weighted log probabilities for each sample"""
         return np.asarray(check_model_fitted(self).score_samples(X))
 
-    def bic(self, X):
+    def bic(self, X: AnyArray) -> np.ndarray:
         """Compute the Bayesian Information Criterion"""
         return np.asarray(check_model_fitted(self).bic(X))
 
-    def aic(self, X):
+    def aic(self, X: AnyArray) -> np.ndarray:
         """Compute the Akaike Information Criterion"""
         return np.asarray(check_model_fitted(self).aic(X))
