@@ -798,7 +798,7 @@ class GaussianMixtureModelJax:
         aic : jax.array
             Akaike Information Criterion
         """
-        return -2 * self.score(x) * x.shape[Axis.batch] + 2 * self.n_parameters
+        return -2 * self.score(x) * x.shape[Axis.batch] + 2 * self.n_parameters  # type: ignore [no-any-return]
 
     @jax.jit
     def bic(self, x: jax.Array) -> jax.Array:
@@ -814,7 +814,7 @@ class GaussianMixtureModelJax:
         bic : jax.array
             Bayesian Information Criterion
         """
-        return -2 * self.score(x) * x.shape[Axis.batch] + self.n_parameters * jnp.log(
+        return -2 * self.score(x) * x.shape[Axis.batch] + self.n_parameters * jnp.log(  # type: ignore [no-any-return]
             x.shape[Axis.batch]
         )
 
