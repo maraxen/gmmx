@@ -730,6 +730,94 @@ class GaussianMixtureModelJax:
         predictions = jnp.argmax(log_prob, axis=Axis.components, keepdims=True)
         return jnp.squeeze(predictions, axis=(Axis.features, Axis.features_covar))
 
+    @jax.jit
+    def predict_proba(self, x: jax.Array) -> jax.Array:
+        """Predict the probability of each sample belonging to each component
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+
+        Returns
+        -------
+        probabilities : jax.array
+            Predicted probabilities
+        """
+        log_prob = self.log_prob(x)
+        return jnp.exp(log_prob)
+
+    @jax.jit
+    def score_samples(self, x: jax.Array) -> jax.Array:
+        """Compute the weighted log probabilities for each sample
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+
+        Returns
+        -------
+        log_prob : jax.array
+            Log probabilities
+        """
+        log_prob = self.log_prob(x)
+        log_prob_norm = jax.scipy.special.logsumexp(
+            log_prob, axis=Axis.components, keepdims=True
+        )
+        return log_prob_norm
+
+    @jax.jit
+    def score(self, x: jax.Array) -> jax.Array:
+        """Compute the log likelihood of the data
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+
+        Returns
+        -------
+        log_likelihood : float
+            Log-likelihood of the data
+        """
+        log_prob = self.score_samples(x)
+        return jnp.mean(log_prob)
+
+    @jax.jit
+    def aic(self, x: jax.Array) -> jax.Array:
+        """Compute the Akaike Information Criterion
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+
+        Returns
+        -------
+        aic : jax.array
+            Akaike Information Criterion
+        """
+        return -2 * self.score(x) * x.shape[Axis.batch] + 2 * self.n_parameters
+
+    @jax.jit
+    def bic(self, x: jax.Array) -> jax.Array:
+        """Compute the Bayesian Information Criterion
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+
+        Returns
+        -------
+        bic : jax.array
+            Bayesian Information Criterion
+        """
+        return -2 * self.score(x) * x.shape[Axis.batch] + self.n_parameters * jnp.log(
+            x.shape[Axis.batch]
+        )
+
     @partial(jax.jit, static_argnames=["n_samples"])
     def sample(self, key: jax.Array, n_samples: int) -> jax.Array:
         """Sample from the model
