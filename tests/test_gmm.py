@@ -4,7 +4,7 @@ import pytest
 from jax import numpy as jnp
 from numpy.testing import assert_allclose
 
-from gmmx import EMFitter, GaussianMixtureModelJax
+from gmmx import EMFitter, GaussianMixtureModelJax, GaussianMixtureSKLearn
 
 TEST_COVARIANCES = {
     "full": np.array([
@@ -181,3 +181,44 @@ def test_fit_against_sklearn(gmm_jax):
 
     # note this is agreement in log-likehood, not likelihood!
     assert_allclose(log_likelihood_jax, log_likelihood_sklearn, rtol=1e-2)
+
+
+def test_sklearn_api(gmm_jax):
+    random_state = np.random.RandomState(829282)
+    x, _ = gmm_jax.to_sklearn(random_state=random_state).sample(16_000)
+
+    covar_str = gmm_jax.covariances.type.value
+
+    gmm = GaussianMixtureSKLearn(
+        n_components=2,
+        covariance_type=covar_str,
+        tol=1e-6,
+        random_state=random_state,
+    )
+    gmm.fit(x)
+
+    assert gmm.converged_
+
+    assert_allclose(gmm.weights_, [0.2, 0.8], rtol=0.06)
+    assert_allclose(gmm.covariances_, TEST_COVARIANCES[covar_str], rtol=0.1)
+    assert_allclose(gmm.means_, [[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]], atol=0.05)
+
+    value = gmm.score_samples(x[:2])
+    assert_allclose(value, [-6.037295, -5.093166], rtol=1e-4)
+
+    value = gmm.score(x[:2])
+    assert_allclose(value, -5.56523, rtol=1e-4)
+
+    value = gmm.predict(x[:2])
+    assert_allclose(value, [0, 0], rtol=1e-4)
+
+    value = gmm.predict_proba(x[:2])
+    assert_allclose(
+        value, [[9.990787e-01, 9.212347e-04], [5.027220e-01, 4.972780e-01]], rtol=1e-4
+    )
+
+    value = gmm.aic(x[:2])
+    assert_allclose(value, 48.26092, rtol=1e-4)
+
+    value = gmm.bic(x[:2])
+    assert_allclose(value, 31.271835, rtol=1e-4)

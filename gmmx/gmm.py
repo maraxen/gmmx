@@ -943,6 +943,7 @@ class GaussianMixtureSKLearn:
                 "x": x,
                 "n_components": self.n_components,
                 "covariance_type": self.covariance_type,
+                "random_state": self.random_state,
             }
             self._gmm = INIT_METHODS[self.init_params](**kwargs)  # type: ignore [arg-type]
         else:
@@ -974,7 +975,7 @@ class GaussianMixtureSKLearn:
 
     def predict(self, X: AnyArray) -> np.ndarray:
         """Predict the component index for each sample"""
-        return np.asarray(check_model_fitted(self).predict(X))
+        return np.squeeze(check_model_fitted(self).predict(X), axis=Axis.components)
 
     def fit_predict(self) -> np.ndarray:
         """Fit the model and predict the component index for each sample"""
@@ -982,7 +983,10 @@ class GaussianMixtureSKLearn:
 
     def predict_proba(self, X: AnyArray) -> np.ndarray:
         """Predict the probability of each sample belonging to each component"""
-        return np.asarray(check_model_fitted(self).predict_proba(X))
+        return np.squeeze(
+            check_model_fitted(self).predict_proba(X),
+            axis=(Axis.features, Axis.features_covar),
+        )
 
     def sample(self, n_samples: int) -> np.ndarray:
         """Sample from the model"""
@@ -995,7 +999,10 @@ class GaussianMixtureSKLearn:
 
     def score_samples(self, X: AnyArray) -> np.ndarray:
         """Compute the weighted log probabilities for each sample"""
-        return np.asarray(check_model_fitted(self).score_samples(X))
+        return np.squeeze(
+            (check_model_fitted(self).score_samples(X)),
+            axis=(Axis.components, Axis.features, Axis.features_covar),
+        )
 
     def bic(self, X: AnyArray) -> np.ndarray:
         """Compute the Bayesian Information Criterion"""
