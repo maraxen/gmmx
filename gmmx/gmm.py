@@ -48,7 +48,7 @@ simple enum works just fine in many cases!
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
 from typing import Any, ClassVar, Union
@@ -58,6 +58,7 @@ import numpy as np
 from jax import numpy as jnp
 from jax import scipy as jsp
 
+from gmmx.fit import EMFitter
 from gmmx.utils import register_dataclass_jax
 
 __all__ = [
@@ -862,3 +863,109 @@ class GaussianMixtureModelJax:
         )
 
         return samples
+
+
+def check_model_fitted(instance) -> GaussianMixtureModelJax:
+    """Check if the model is fitted"""
+    if instance._gmm is None:
+        message = "Model not initialized. Call `fit` first."
+        raise ValueError(message)
+
+    return instance._gmm
+
+
+@dataclass
+class GaussianMixture:
+    """Scikit learn compatibile API for Gaussian Mixture Model
+
+    See docs at https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
+    """
+
+    n_components: int
+    covariance_type: str = "full"
+    tol: float = 1e-3
+    reg_covar: float = 1e-6
+    max_iter: int = 100
+    n_init: int = 1
+    init_params: str = "kmeans"
+    weights_init: AnyArray | None = None
+    means_init: AnyArray | None = None
+    precisions_init: AnyArray | None = None
+    random_state: int | None = None
+    warm_start: bool = False
+    _gmm: GaussianMixtureModelJax | None = field(init=False, repr=False, default=None)
+
+    @property
+    def weights_(self) -> AnyArray:
+        """Weights of each component"""
+        return check_model_fitted(self).weights_numpy
+
+    @property
+    def means_(self) -> AnyArray:
+        """Means of each component"""
+        return check_model_fitted(self).means_numpy
+
+    @property
+    def precisions_cholesky_(self) -> AnyArray:
+        """Precision matrices of each component"""
+        return check_model_fitted(self).covariances.precisions_cholesky_numpy
+
+    @property
+    def covariances_(self) -> AnyArray:
+        """Covariances of each component"""
+        return check_model_fitted(self).covariances.values_numpy
+
+    def fit(self, X):
+        """Fit the model"""
+        if self.init_params == "kmeans":
+            self._gmm_state = GaussianMixtureModelJax.from_k_means(
+                x=X,
+                n_components=self.n_components,
+                reg_covar=self.reg_covar,
+                covariance_type=self.covariance_type,
+                random_state=self.random_state,
+            )
+        else:
+            self._gmm_state = GaussianMixtureModelJax.from_squeezed(
+                means=self.means_init,
+                covariances=self.precisions_init,
+                weights=self.weights_init,
+                covariance_type=self.covariance_type,
+            )
+
+        fitter = EMFitter(
+            tol=self.tol,
+            reg_covar=self.reg_covar,
+            max_iter=self.max_iter,
+        )
+        result = fitter.fit(X, self._gmm)
+        self._gmm_state = result.gmm
+        self.converged_ = result.converged
+
+    def predict(self, X):
+        """Predict the component index for each sample"""
+        return np.asarray(check_model_fitted(self).predict(X))
+
+    def fit_predict(self):
+        pass
+
+    def predict_proba(self, X):
+        """Predict the probability of each sample belonging to each component"""
+        return np.asarray(jnp.exp(check_model_fitted(self).estimate_log_prob(X)))
+
+    def sample(self, n_samples):
+        """Sample from the model"""
+        key = jax.random.PRNGKey(self.random_state.randint(2**32 - 1))
+        return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
+
+    def score(self):
+        pass
+
+    def score_samples(self):
+        pass
+
+    def bic(self):
+        raise NotImplementedError
+
+    def aic(self):
+        raise NotImplementedError
