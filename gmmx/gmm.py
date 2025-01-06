@@ -947,25 +947,30 @@ class GaussianMixture:
         return np.asarray(check_model_fitted(self).predict(X))
 
     def fit_predict(self):
-        pass
+        """Fit the model and predict the component index for each sample"""
+        raise NotImplementedError
 
     def predict_proba(self, X):
         """Predict the probability of each sample belonging to each component"""
-        return np.asarray(jnp.exp(check_model_fitted(self).estimate_log_prob(X)))
+        return np.asarray(check_model_fitted(self).predict_proba(X))
 
     def sample(self, n_samples):
         """Sample from the model"""
         key = jax.random.PRNGKey(self.random_state.randint(2**32 - 1))
         return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
 
-    def score(self):
-        pass
+    def score(self, X):
+        """Compute the log likelihood of the data"""
+        return np.asarray(check_model_fitted(self).score(X))
 
-    def score_samples(self):
-        pass
+    def score_samples(self, X):
+        """Compute the weighted log probabilities for each sample"""
+        return np.asarray(check_model_fitted(self).score_samples(X))
 
-    def bic(self):
-        raise NotImplementedError
+    def bic(self, X):
+        """Compute the Bayesian Information Criterion"""
+        return np.asarray(check_model_fitted(self).bic(X))
 
-    def aic(self):
-        raise NotImplementedError
+    def aic(self, X):
+        """Compute the Akaike Information Criterion"""
+        return np.asarray(check_model_fitted(self).aic(X))

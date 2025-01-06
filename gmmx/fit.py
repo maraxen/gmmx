@@ -9,9 +9,6 @@ from .utils import register_dataclass_jax
 __all__ = ["EMFitter", "EMFitterResult"]
 
 
-@register_dataclass_jax(
-    data_fields=["x", "gmm", "n_iter", "log_likelihood", "log_likelihood_diff"],
-)
 @dataclass
 class EMFitterResult:
     """Expectation-Maximization Fitter Result
