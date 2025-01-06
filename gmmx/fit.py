@@ -73,7 +73,7 @@ class EMFitter:
         log_likelihood : jax.array
             Log-likelihood of the data
         """
-        log_prob = gmm.estimate_log_prob(x)
+        log_prob = gmm.log_prob(x)
         log_prob_norm = jax.scipy.special.logsumexp(
             log_prob, axis=Axis.components, keepdims=True
         )

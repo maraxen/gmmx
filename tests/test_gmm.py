@@ -73,7 +73,7 @@ def test_against_sklearn(gmm_jax):
 
     gmm = gmm_jax.to_sklearn()
     result_ref = gmm._estimate_weighted_log_prob(X=x)
-    result = gmm_jax.estimate_log_prob(x=jnp.asarray(x))[:, :, 0, 0]
+    result = gmm_jax.log_prob(x=jnp.asarray(x))[:, :, 0, 0]
 
     assert_allclose(np.asarray(result), result_ref, rtol=1e-6)
 
@@ -158,7 +158,7 @@ def test_fit_against_sklearn(gmm_jax):
         result_jax.gmm.covariances.values_numpy, TEST_COVARIANCES[covar_str], rtol=0.1
     )
 
-    log_likelihood_jax = result_jax.gmm.estimate_log_prob(x[:10]).sum(axis=1)[:, 0, 0]
+    log_likelihood_jax = result_jax.gmm.log_prob(x[:10]).sum(axis=1)[:, 0, 0]
     log_likelihood_sklearn = gmm_sklearn._estimate_weighted_log_prob(x[:10]).sum(axis=1)
 
     # note this is agreement in log-likehood, not likelihood!

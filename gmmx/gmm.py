@@ -655,7 +655,7 @@ class GaussianMixtureModelJax:
         return jnp.log(self.weights)
 
     @jax.jit
-    def estimate_log_prob(self, x: jax.Array) -> jax.Array:
+    def log_prob(self, x: jax.Array) -> jax.Array:
         """Compute log likelihood for given feature vector
 
         Parameters
@@ -726,7 +726,7 @@ class GaussianMixtureModelJax:
         predictions : jax.array
             Predicted component index
         """
-        log_prob = self.estimate_log_prob(x)
+        log_prob = self.log_prob(x)
         predictions = jnp.argmax(log_prob, axis=Axis.components, keepdims=True)
         return jnp.squeeze(predictions, axis=(Axis.features, Axis.features_covar))
 
