@@ -80,6 +80,24 @@ def test_against_sklearn(gmm_jax):
     assert gmm_jax.n_parameters == gmm._n_parameters()
 
 
+@pytest.mark.parametrize(
+    "method", ["aic", "bic", "predict", "predict_proba", "score", "score_samples"]
+)
+def test_against_sklearn_all(gmm_jax, method):
+    gmm = gmm_jax.to_sklearn()
+    x = np.array([
+        [1, 2, 3],
+        [1, 4, 2],
+        [1, 0, 6],
+        [4, 2, 4],
+        [4, 4, 4],
+        [4, 0, 2],
+    ])
+    result_sklearn = getattr(gmm, method)(x)
+    result_jax = getattr(gmm_jax, method)(jnp.asarray(x))
+    assert_allclose(np.squeeze(result_jax), result_sklearn, rtol=1e-5)
+
+
 def test_sample(gmm_jax):
     key = jax.random.PRNGKey(0)
     samples = gmm_jax.sample(key, 2)

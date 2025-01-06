@@ -745,7 +745,10 @@ class GaussianMixtureModelJax:
             Predicted probabilities
         """
         log_prob = self.log_prob(x)
-        return jnp.exp(log_prob)
+        log_prob_norm = jax.scipy.special.logsumexp(
+            log_prob, axis=Axis.components, keepdims=True
+        )
+        return jnp.exp(log_prob - log_prob_norm)
 
     @jax.jit
     def score_samples(self, x: jax.Array) -> jax.Array:
