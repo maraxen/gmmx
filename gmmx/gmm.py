@@ -426,7 +426,7 @@ class DiagCovariances:
         )
 
     @classmethod
-    def from_precisions(cls, precisions: jax.AnyArray) -> DiagCovariances:
+    def from_precisions(cls, precisions: AnyArray) -> DiagCovariances:
         """Create covariance matrix from precision matrices"""
         values = 1.0 / precisions
         return cls.from_squeezed(values=values)
@@ -964,7 +964,7 @@ class GaussianMixtureSKLearn:
             self._gmm = GaussianMixtureModelJax.from_squeezed(
                 means=self.means_init,  # type: ignore [arg-type]
                 covariances=covar.from_precisions(
-                    self.precisions_init.astype(np.float32)
+                    self.precisions_init.astype(np.float32)  # type: ignore [union-attr]
                 ).values_numpy,
                 weights=self.weights_init,  # type: ignore [arg-type]
                 covariance_type=self.covariance_type,
