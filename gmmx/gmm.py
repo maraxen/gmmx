@@ -70,7 +70,7 @@ __all__ = [
 ]
 
 
-AnyArray = Union[np.ndarray, jax.Array]
+AnyArray = Union[np.typing.NDArray, jax.Array]
 Device = Union[str, None]
 
 
@@ -144,7 +144,7 @@ class FullCovariances:
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
 
     @property
-    def values_numpy(self) -> np.ndarray:
+    def values_numpy(self) -> np.typing.NDArray:
         """Covariance as numpy array"""
         return np.squeeze(np.asarray(self.values), axis=Axis.batch)
 
@@ -154,7 +154,7 @@ class FullCovariances:
         return self.values
 
     @property
-    def precisions_cholesky_numpy(self) -> np.ndarray:
+    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
         """Compute precision matrices"""
         return np.squeeze(np.asarray(self.precisions_cholesky), axis=Axis.batch)
 
@@ -386,7 +386,7 @@ class DiagCovariances:
         return jnp.sqrt(1.0 / self.values).mT
 
     @property
-    def precisions_cholesky_numpy(self) -> np.ndarray:
+    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
         """Compute precision matrices"""
         return np.squeeze(
             np.asarray(self.precisions_cholesky_sparse),
@@ -394,7 +394,7 @@ class DiagCovariances:
         )
 
     @property
-    def values_numpy(self) -> np.ndarray:
+    def values_numpy(self) -> np.typing.NDArray:
         """Covariance as numpy array"""
         return np.squeeze(
             np.asarray(self.values), axis=(Axis.batch, Axis.features_covar)
@@ -456,7 +456,7 @@ class GaussianMixtureModelJax:
         check_shape(self.means, (1, None, None, 1))
 
     @property
-    def weights_numpy(self) -> np.ndarray:
+    def weights_numpy(self) -> np.typing.NDArray:
         """Weights as numpy array"""
         return np.squeeze(
             np.asarray(self.weights),
@@ -464,7 +464,7 @@ class GaussianMixtureModelJax:
         )
 
     @property
-    def means_numpy(self) -> np.ndarray:
+    def means_numpy(self) -> np.typing.NDArray:
         """Means as numpy array"""
         return np.squeeze(
             np.asarray(self.means), axis=(Axis.batch, Axis.features_covar)
@@ -973,41 +973,41 @@ class GaussianMixtureSKLearn:
         self.converged_ = result.converged
         return self
 
-    def predict(self, X: AnyArray) -> np.ndarray:
+    def predict(self, X: AnyArray) -> np.typing.NDArray:
         """Predict the component index for each sample"""
-        return np.squeeze(check_model_fitted(self).predict(X), axis=Axis.components)
+        return np.squeeze(check_model_fitted(self).predict(X), axis=Axis.components)  # type: ignore [no-any-return]
 
-    def fit_predict(self) -> np.ndarray:
+    def fit_predict(self) -> np.typing.NDArray:
         """Fit the model and predict the component index for each sample"""
         raise NotImplementedError
 
-    def predict_proba(self, X: AnyArray) -> np.ndarray:
+    def predict_proba(self, X: AnyArray) -> np.typing.NDArray:
         """Predict the probability of each sample belonging to each component"""
-        return np.squeeze(
+        return np.squeeze(  # type: ignore [no-any-return]
             check_model_fitted(self).predict_proba(X),
             axis=(Axis.features, Axis.features_covar),
         )
 
-    def sample(self, n_samples: int) -> np.ndarray:
+    def sample(self, n_samples: int) -> np.typing.NDArray:
         """Sample from the model"""
         key = jax.random.key(self.random_state.randint(2**32 - 1))  # type: ignore [union-attr]
         return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
 
-    def score(self, X: AnyArray) -> np.ndarray:
+    def score(self, X: AnyArray) -> np.typing.NDArray:
         """Compute the log likelihood of the data"""
         return np.asarray(check_model_fitted(self).score(X))
 
-    def score_samples(self, X: AnyArray) -> np.ndarray:
+    def score_samples(self, X: AnyArray) -> np.typing.NDArray:
         """Compute the weighted log probabilities for each sample"""
-        return np.squeeze(
+        return np.squeeze(  # type: ignore [no-any-return]
             (check_model_fitted(self).score_samples(X)),
             axis=(Axis.components, Axis.features, Axis.features_covar),
         )
 
-    def bic(self, X: AnyArray) -> np.ndarray:
+    def bic(self, X: AnyArray) -> np.typing.NDArray:
         """Compute the Bayesian Information Criterion"""
         return np.asarray(check_model_fitted(self).bic(X))
 
-    def aic(self, X: AnyArray) -> np.ndarray:
+    def aic(self, X: AnyArray) -> np.typing.NDArray:
         """Compute the Akaike Information Criterion"""
         return np.asarray(check_model_fitted(self).aic(X))
