@@ -290,6 +290,12 @@ class FullCovariances:
         precisions_chol = jsp.linalg.solve_triangular(cov_chol, b, lower=True)
         return precisions_chol.mT
 
+    @classmethod
+    def from_precisions(cls, precisions: AnyArray) -> FullCovariances:
+        """Create covariance matrix from precision matrices"""
+        values = jsp.linalg.inv(precisions)
+        return cls.from_squeezed(values=values)
+
 
 @register_dataclass_jax(data_fields=["values"])
 @dataclass
@@ -418,6 +424,12 @@ class DiagCovariances:
             axis=(Axis.features, Axis.features_covar),
             keepdims=True,
         )
+
+    @classmethod
+    def from_precisions(cls, precisions: jax.AnyArray) -> DiagCovariances:
+        """Create covariance matrix from precision matrices"""
+        values = 1.0 / precisions
+        return cls.from_squeezed(values=values)
 
 
 COVARIANCE: dict[CovarianceType, Any] = {
@@ -912,22 +924,22 @@ class GaussianMixtureSKLearn:
         self.random_state = check_random_state(self.random_state)
 
     @property
-    def weights_(self) -> AnyArray:
+    def weights_(self) -> np.typing.NDArray:
         """Weights of each component"""
         return check_model_fitted(self).weights_numpy
 
     @property
-    def means_(self) -> AnyArray:
+    def means_(self) -> np.typing.NDArray:
         """Means of each component"""
         return check_model_fitted(self).means_numpy
 
     @property
-    def precisions_cholesky_(self) -> AnyArray:
+    def precisions_cholesky_(self) -> np.typing.NDArray:
         """Precision matrices of each component"""
         return check_model_fitted(self).covariances.precisions_cholesky_numpy
 
     @property
-    def covariances_(self) -> AnyArray:
+    def covariances_(self) -> np.typing.NDArray:
         """Covariances of each component"""
         return check_model_fitted(self).covariances.values_numpy
 
@@ -947,9 +959,13 @@ class GaussianMixtureSKLearn:
             }
             self._gmm = INIT_METHODS[self.init_params](**kwargs)  # type: ignore [arg-type]
         else:
+            covar = COVARIANCE[CovarianceType(self.covariance_type)]
+
             self._gmm = GaussianMixtureModelJax.from_squeezed(
                 means=self.means_init,  # type: ignore [arg-type]
-                covariances=jnp.linalg.inv(self.precisions_init),
+                covariances=covar.from_precisions(
+                    self.precisions_init.astype(np.float32)
+                ).values_numpy,
                 weights=self.weights_init,  # type: ignore [arg-type]
                 covariance_type=self.covariance_type,
             )

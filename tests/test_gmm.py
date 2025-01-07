@@ -14,18 +14,22 @@ TEST_COVARIANCES = {
     "diag": np.array([[1.0, 2.0, 3.0], [3.0, 2.0, 1.0]]),
 }
 
+TEST_PRECISIONS = {
+    "full": np.linalg.inv(TEST_COVARIANCES["full"]),
+    "diag": 1 / TEST_COVARIANCES["diag"],
+}
+
+MEANS = np.array([[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]])
+WEIGHTS = np.array([0.2, 0.8])
+
 
 @pytest.fixture(params=["full", "diag"])
 def gmm_jax(request):
-    means = np.array([[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]])
-
     covariances = TEST_COVARIANCES[request.param]
-    weights = np.array([0.2, 0.8])
-
     return GaussianMixtureModelJax.from_squeezed(
-        means=means,
+        means=MEANS,
         covariances=covariances,
-        weights=weights,
+        weights=WEIGHTS,
         covariance_type=request.param,
     )
 
@@ -185,7 +189,7 @@ def test_fit_against_sklearn(gmm_jax):
 
 def test_sklearn_api(gmm_jax):
     random_state = np.random.RandomState(829282)
-    x, _ = gmm_jax.to_sklearn(random_state=random_state).sample(16_000)
+    x = gmm_jax.sample(key=jax.random.PRNGKey(0), n_samples=16_000)
 
     covar_str = gmm_jax.covariances.type.value
 
@@ -194,31 +198,43 @@ def test_sklearn_api(gmm_jax):
         covariance_type=covar_str,
         tol=1e-6,
         random_state=random_state,
+        weights_init=WEIGHTS,
+        means_init=MEANS,
+        precisions_init=TEST_PRECISIONS[covar_str],
+        max_iter=0,  # we just want to test the API, so we don't want to fit
     )
     gmm.fit(x)
 
-    assert gmm.converged_
+    assert not gmm.converged_
 
-    assert_allclose(gmm.weights_, [0.2, 0.8], rtol=0.06)
+    assert_allclose(gmm.weights_, WEIGHTS, rtol=0.06)
     assert_allclose(gmm.covariances_, TEST_COVARIANCES[covar_str], rtol=0.1)
-    assert_allclose(gmm.means_, [[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]], atol=0.05)
+    assert_allclose(gmm.means_, MEANS, atol=0.05)
 
     value = gmm.score_samples(x[:2])
-    assert_allclose(value, [-6.037295, -5.093166], rtol=1e-4)
+    expected = {"full": [-4.435944, -5.810338], "diag": [-5.678393, -7.025789]}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.score(x[:2])
-    assert_allclose(value, -5.56523, rtol=1e-4)
+    expected = {"full": -5.123141, "diag": -6.352091}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.predict(x[:2])
-    assert_allclose(value, [0, 0], rtol=1e-4)
+    expected = {"full": [1, 0], "diag": [1, 0]}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.predict_proba(x[:2])
-    assert_allclose(
-        value, [[9.990787e-01, 9.212347e-04], [5.027220e-01, 4.972780e-01]], atol=1e-3
-    )
+
+    expected = {
+        "full": [[1.188522e-07, 1.000000e00], [9.999938e-01, 6.106255e-06]],
+        "diag": [[3.933927e-06, 9.999962e-01], [9.733525e-01, 2.664736e-02]],
+    }
+    assert_allclose(value, expected[covar_str], atol=1e-3)
 
     value = gmm.aic(x[:2])
-    assert_allclose(value, 48.26092, rtol=1e-4)
+    expected = {"full": 58.492565, "diag": 51.408363}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.bic(x[:2])
-    assert_allclose(value, 31.271835, rtol=1e-4)
+    expected = {"full": 33.66236, "diag": 34.419277}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
