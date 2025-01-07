@@ -48,7 +48,7 @@ simple enum works just fine in many cases!
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
 from typing import Any, ClassVar, Union
@@ -66,6 +66,7 @@ __all__ = [
     "DiagCovariances",
     "FullCovariances",
     "GaussianMixtureModelJax",
+    "GaussianMixtureSKLearn",
 ]
 
 
@@ -514,7 +515,7 @@ class GaussianMixtureModelJax:
         means: AnyArray,
         covariances: AnyArray,
         weights: AnyArray,
-        covariance_type: CovarianceType = CovarianceType.full,
+        covariance_type: CovarianceType | str = CovarianceType.full,
     ) -> GaussianMixtureModelJax:
         """Create a Jax GMM from squeezed arrays
 
@@ -586,7 +587,7 @@ class GaussianMixtureModelJax:
     @classmethod
     def from_k_means(
         cls,
-        x: jax.Array,
+        x: AnyArray,
         n_components: int,
         reg_covar: float = 1e-6,
         covariance_type: CovarianceType = CovarianceType.full,
@@ -618,6 +619,7 @@ class GaussianMixtureModelJax:
 
         resp = jnp.zeros((n_samples, n_components))
 
+        kwargs.setdefault("n_init", 10)  # type: ignore [arg-type]
         label = KMeans(n_clusters=n_components, **kwargs).fit(x).labels_
 
         idx = jnp.arange(n_samples)
@@ -862,3 +864,150 @@ class GaussianMixtureModelJax:
         )
 
         return samples
+
+
+def check_model_fitted(
+    instance: GaussianMixtureSKLearn,
+) -> GaussianMixtureModelJax:
+    """Check if the model is fitted"""
+    if instance._gmm is None:
+        message = "Model not initialized. Call `fit` first."
+        raise ValueError(message)
+
+    return instance._gmm
+
+
+INIT_METHODS = {
+    "kmeans": GaussianMixtureModelJax.from_k_means,
+}
+
+
+@dataclass
+class GaussianMixtureSKLearn:
+    """Scikit learn compatibile API for Gaussian Mixture Model
+
+    See docs at https://scikit-learn.org/stable/modules/generated/sklearn.mixture.GaussianMixture.html
+    """
+
+    n_components: int
+    covariance_type: str = "full"
+    tol: float = 1e-3
+    reg_covar: float = 1e-6
+    max_iter: int = 100
+    n_init: int = 1
+    init_params: str = "kmeans"
+    weights_init: AnyArray | None = None
+    means_init: AnyArray | None = None
+    precisions_init: AnyArray | None = None
+    random_state: np.random.RandomState | None = None
+    warm_start: bool = False
+    _gmm: GaussianMixtureModelJax | None = field(init=False, repr=False, default=None)
+
+    def __post_init__(self) -> None:
+        from sklearn.utils import check_random_state  # type: ignore [import-untyped]
+
+        if self.n_init > 1:
+            raise NotImplementedError("n_init > 1 is not supported yet.")
+
+        self.random_state = check_random_state(self.random_state)
+
+    @property
+    def weights_(self) -> AnyArray:
+        """Weights of each component"""
+        return check_model_fitted(self).weights_numpy
+
+    @property
+    def means_(self) -> AnyArray:
+        """Means of each component"""
+        return check_model_fitted(self).means_numpy
+
+    @property
+    def precisions_cholesky_(self) -> AnyArray:
+        """Precision matrices of each component"""
+        return check_model_fitted(self).covariances.precisions_cholesky_numpy
+
+    @property
+    def covariances_(self) -> AnyArray:
+        """Covariances of each component"""
+        return check_model_fitted(self).covariances.values_numpy
+
+    def _initialize_gmm(self, x: AnyArray) -> None:
+        init_from_data = (
+            self.weights_init is None
+            or self.means_init is None
+            or self.precisions_init is None
+        )
+
+        if init_from_data:
+            kwargs = {
+                "x": x,
+                "n_components": self.n_components,
+                "covariance_type": self.covariance_type,
+                "random_state": self.random_state,
+            }
+            self._gmm = INIT_METHODS[self.init_params](**kwargs)  # type: ignore [arg-type]
+        else:
+            self._gmm = GaussianMixtureModelJax.from_squeezed(
+                means=self.means_init,  # type: ignore [arg-type]
+                covariances=jnp.linalg.inv(self.precisions_init),
+                weights=self.weights_init,  # type: ignore [arg-type]
+                covariance_type=self.covariance_type,
+            )
+
+    def fit(self, X: AnyArray) -> GaussianMixtureSKLearn:
+        """Fit the model"""
+        from gmmx.fit import EMFitter
+
+        do_init = not (self.warm_start and hasattr(self, "converged_"))
+
+        if do_init:
+            self._initialize_gmm(x=X)
+
+        fitter = EMFitter(
+            tol=self.tol,
+            reg_covar=self.reg_covar,
+            max_iter=self.max_iter,
+        )
+        result = fitter.fit(X, self._gmm)
+        self._gmm = result.gmm
+        self.converged_ = result.converged
+        return self
+
+    def predict(self, X: AnyArray) -> np.ndarray:
+        """Predict the component index for each sample"""
+        return np.squeeze(check_model_fitted(self).predict(X), axis=Axis.components)
+
+    def fit_predict(self) -> np.ndarray:
+        """Fit the model and predict the component index for each sample"""
+        raise NotImplementedError
+
+    def predict_proba(self, X: AnyArray) -> np.ndarray:
+        """Predict the probability of each sample belonging to each component"""
+        return np.squeeze(
+            check_model_fitted(self).predict_proba(X),
+            axis=(Axis.features, Axis.features_covar),
+        )
+
+    def sample(self, n_samples: int) -> np.ndarray:
+        """Sample from the model"""
+        key = jax.random.key(self.random_state.randint(2**32 - 1))  # type: ignore [union-attr]
+        return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
+
+    def score(self, X: AnyArray) -> np.ndarray:
+        """Compute the log likelihood of the data"""
+        return np.asarray(check_model_fitted(self).score(X))
+
+    def score_samples(self, X: AnyArray) -> np.ndarray:
+        """Compute the weighted log probabilities for each sample"""
+        return np.squeeze(
+            (check_model_fitted(self).score_samples(X)),
+            axis=(Axis.components, Axis.features, Axis.features_covar),
+        )
+
+    def bic(self, X: AnyArray) -> np.ndarray:
+        """Compute the Bayesian Information Criterion"""
+        return np.asarray(check_model_fitted(self).bic(X))
+
+    def aic(self, X: AnyArray) -> np.ndarray:
+        """Compute the Akaike Information Criterion"""
+        return np.asarray(check_model_fitted(self).aic(X))

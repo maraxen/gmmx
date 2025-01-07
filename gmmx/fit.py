@@ -10,7 +10,14 @@ __all__ = ["EMFitter", "EMFitterResult"]
 
 
 @register_dataclass_jax(
-    data_fields=["x", "gmm", "n_iter", "log_likelihood", "log_likelihood_diff"],
+    data_fields=[
+        "x",
+        "gmm",
+        "n_iter",
+        "log_likelihood",
+        "log_likelihood_diff",
+        "converged",
+    ]
 )
 @dataclass
 class EMFitterResult:
@@ -28,6 +35,8 @@ class EMFitterResult:
         Log-likelihood of the data
     log_likelihood_diff : jax.array
         Difference in log-likelihood with respect to the previous iteration
+    converged : bool
+        Whether the algorithm converged
     """
 
     x: jax.Array
@@ -35,6 +44,7 @@ class EMFitterResult:
     n_iter: int
     log_likelihood: jax.Array
     log_likelihood_diff: jax.Array
+    converged: bool
 
 
 @register_dataclass_jax(meta_fields=["max_iter", "tol", "reg_covar"])
@@ -151,4 +161,4 @@ class EMFitter:
             body_fun=em_step,
             init_val=(x, gmm, 0, jnp.asarray(jnp.inf), jnp.array(jnp.inf)),
         )
-        return EMFitterResult(*result)
+        return EMFitterResult(*result, converged=result[2] < self.max_iter)
