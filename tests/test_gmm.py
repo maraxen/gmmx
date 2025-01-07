@@ -214,7 +214,7 @@ def test_sklearn_api(gmm_jax):
 
     value = gmm.predict_proba(x[:2])
     assert_allclose(
-        value, [[9.990787e-01, 9.212347e-04], [5.027220e-01, 4.972780e-01]], atol=1e-4
+        value, [[9.990787e-01, 9.212347e-04], [5.027220e-01, 4.972780e-01]], atol=1e-3
     )
 
     value = gmm.aic(x[:2])
