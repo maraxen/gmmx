@@ -28,12 +28,6 @@ jobs:
         with:
           name: pyproject-toml
           path: pyproject.toml
-  build-and-inspect-package:
-    name: Build & inspect package.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hynek/build-and-inspect-python-package@v2
   publish:
     runs-on: ubuntu-latest
     needs: [set-version]
