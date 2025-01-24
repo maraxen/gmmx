@@ -1,4 +1,4 @@
-name: validate-codecov-config
+name: build-and-inspect-package
 
 on:
   pull_request:
