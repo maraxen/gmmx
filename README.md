@@ -24,6 +24,12 @@ A minimal implementation of Gaussian Mixture Models in Jax
 pip install gmmx
 ```
 
+Or alternatively you can use `conda/mamba`:
+
+```bash
+conda install gmmx
+```
+
 ## Usage
 
 ```python
