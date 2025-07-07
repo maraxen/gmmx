@@ -161,4 +161,5 @@ class EMFitter:
             body_fun=em_step,
             init_val=(x, gmm, 0, jnp.asarray(jnp.inf), jnp.array(jnp.inf)),
         )
+        result = jax.block_until_ready(result)
         return EMFitterResult(*result, converged=result[2] < self.max_iter)
