@@ -704,7 +704,7 @@ class GaussianMixtureModelJax:
             for key in f.keys():  # noqa: SIM118
                 data[key] = f.get_tensor(key)
 
-            covariance_type = f.metadata["covariance-type"]
+            covariance_type = f.metadata()["covariance-type"]
 
         return cls.from_squeezed(**data, covariance_type=covariance_type)
 
