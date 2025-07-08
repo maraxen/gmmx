@@ -665,7 +665,7 @@ class GaussianMixtureModelJax:
             - 1
         )
 
-    def write(self, filename):
+    def write(self, filename: str) -> None:
         """Save the model parameters to a file in safetensors format."""
         from safetensors.flax import save_file
 
@@ -678,10 +678,10 @@ class GaussianMixtureModelJax:
         metadata = {"covariance-type": self.covariances.type}
 
         log.info(f"Writing {filename}")
-        save_file(data, metadata=metadata, filename=filename)
+        save_file(data, metadata=metadata, filename=filename)  # type: ignore [arg-type]
 
     @classmethod
-    def read(cls, filename, device="cpu"):
+    def read(cls, filename: str, device: str = "cpu") -> GaussianMixtureModelJax:
         """Read model parameters from a safetensors file.
 
         Parameters

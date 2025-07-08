@@ -161,4 +161,4 @@ class EMFitter:
             body_fun=em_step,
             init_val=(x, gmm, 0, jnp.asarray(jnp.inf), jnp.array(jnp.inf)),
         )
-        return EMFitterResult(*result, converged=result[2] < self.max_iter)  # type: ignore [misc]
+        return EMFitterResult(*result, converged=result[2] < self.max_iter)
