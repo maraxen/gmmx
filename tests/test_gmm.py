@@ -149,6 +149,22 @@ def test_fit(gmm_jax):
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.05)
 
 
+def test_io(gmm_jax, tmpdir):
+    filename = tmpdir / "model.safetensors"
+
+    gmm_jax.write(filename)
+
+    new_model = GaussianMixtureModelJax.read(filename)
+
+    assert_allclose(gmm_jax.means_numpy, new_model.means_numpy)
+    assert_allclose(gmm_jax.weights_numpy, new_model.weights_numpy)
+    assert_allclose(
+        gmm_jax.covariances.values_numpy, new_model.covariances.values_numpy
+    )
+
+    assert gmm_jax.covariances.type == new_model.covariances.type
+
+
 def test_fit_against_sklearn(gmm_jax):
     # Fitting is hard to test, especillay we cannot guarantee the fit converges to the same solution
     # However the "global" likelihood (summed accross all components) for a given feature vector

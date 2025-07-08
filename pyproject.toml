@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "jax>=0.4.30",
     "numpy>=1.26.0",
+    "safetensors>=0.5.0",
 ]
 
 [project.urls]
@@ -39,6 +40,7 @@ dev-dependencies = [
     "mkdocs-material>=8.5.10",
     "mkdocstrings[python]>=0.26.1",
     "scikit-learn>=1.0",
+    "safetensors>=0.5.0",
 ]
 
 [build-system]

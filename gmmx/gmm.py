@@ -48,6 +48,7 @@ simple enum works just fine in many cases!
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
@@ -69,6 +70,7 @@ __all__ = [
     "GaussianMixtureSKLearn",
 ]
 
+log = logging.getLogger()
 
 AnyArray = Union[np.typing.NDArray, jax.Array]
 Device = Union[str, None]
@@ -662,6 +664,49 @@ class GaussianMixtureModelJax:
             + self.covariances.n_parameters
             - 1
         )
+
+    def write(self, filename: str) -> None:
+        """Save the model parameters to a file in safetensors format."""
+        from safetensors.flax import save_file
+
+        data = {
+            "means": self.means_numpy,
+            "weights": self.weights_numpy,
+            "covariances": self.covariances.values_numpy,
+        }
+
+        metadata = {"covariance-type": self.covariances.type}
+
+        log.info(f"Writing {filename}")
+        save_file(data, metadata=metadata, filename=filename)  # type: ignore [arg-type]
+
+    @classmethod
+    def read(cls, filename: str, device: str = "cpu") -> GaussianMixtureModelJax:
+        """Read model parameters from a safetensors file.
+
+        Parameters
+        ----------
+        filename : str
+            Path to the safetensors file.
+        device : str, optional
+            Device to load the tensors onto (default: "cpu").
+
+        Returns
+        -------
+        GaussianMixtureModelJax
+            Loaded Gaussian Mixture Model instance.
+        """
+        from safetensors import safe_open
+
+        data = {}
+
+        with safe_open(filename, framework="flax", device=device) as f:
+            for key in f.keys():  # noqa: SIM118
+                data[key] = f.get_tensor(key)
+
+            covariance_type = f.metadata()["covariance-type"]
+
+        return cls.from_squeezed(**data, covariance_type=covariance_type)
 
     @property
     def log_weights(self) -> jax.Array:
