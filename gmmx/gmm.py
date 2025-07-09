@@ -665,6 +665,17 @@ class GaussianMixtureModelJax:
             - 1
         )
 
+    def to_device(self, device: Any) -> GaussianMixtureModelJax:
+        """Move model to device"""
+
+        def move_array_to_device(node):  # type: ignore [no-untyped-def]
+            if isinstance(node, jax.Array):
+                return jax.device_put(node, device=device)
+
+            return node
+
+        return jax.tree_util.tree_map(move_array_to_device, self)  # type: ignore [no-any-return]
+
     def write(self, filename: str) -> None:
         """Save the model parameters to a file in safetensors format."""
         from safetensors.flax import save_file

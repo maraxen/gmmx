@@ -149,6 +149,12 @@ def test_fit(gmm_jax):
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.05)
 
 
+def test_move_to_device(gmm_jax):
+    gmm_jax_moved = gmm_jax.to_device(jax.devices()[0])
+    assert_allclose(gmm_jax.means_numpy, gmm_jax_moved.means_numpy)
+    assert gmm_jax_moved.means.devices() == {jax.devices()[0]}
+
+
 def test_io(gmm_jax, tmpdir):
     filename = tmpdir / "model.safetensors"
 
