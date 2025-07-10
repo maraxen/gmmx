@@ -631,7 +631,7 @@ class GaussianMixtureModelJax:
 
         n_samples = x.shape[Axis.batch]
 
-        resp = jnp.zeros((n_samples, n_components))
+        resp = jnp.zeros((n_samples, n_components), device="cpu")
 
         kwargs.setdefault("n_init", 10)  # type: ignore [arg-type]
         label = KMeans(n_clusters=n_components, **kwargs).fit(x).labels_
