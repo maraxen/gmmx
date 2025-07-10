@@ -609,6 +609,9 @@ class GaussianMixtureModelJax:
     ) -> GaussianMixtureModelJax:
         """Init from k-means clustering
 
+        From k-means only supports creation on the CPU. You can move
+        the whole model using `.to_device()` after.
+
         Parameters
         ----------
         x : jax.array
@@ -631,7 +634,7 @@ class GaussianMixtureModelJax:
 
         n_samples = x.shape[Axis.batch]
 
-        resp = jnp.zeros((n_samples, n_components), device="cpu")
+        resp = jnp.zeros((n_samples, n_components), device=jax.devices("cpu")[0])
 
         kwargs.setdefault("n_init", 10)  # type: ignore [arg-type]
         label = KMeans(n_clusters=n_components, **kwargs).fit(x).labels_
