@@ -1018,9 +1018,7 @@ class GaussianMixtureSKLearn:
 
             self._gmm = GaussianMixtureModelJax.from_squeezed(
                 means=self.means_init,  # type: ignore [arg-type]
-                covariances=covar.from_precisions(
-                    self.precisions_init  # type: ignore [union-attr]
-                ).values_numpy,
+                covariances=covar.from_precisions(self.precisions_init).values_numpy,
                 weights=self.weights_init,  # type: ignore [arg-type]
                 covariance_type=self.covariance_type,
             )
