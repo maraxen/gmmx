@@ -94,10 +94,6 @@ class Axis(int, Enum):
 
 def check_shape(array: jax.Array, expected: tuple[int | None, ...]) -> None:
     """Check shape of array"""
-    # if array.dtype != jnp.float32:
-    #     message = f"Expected float32, got {array.dtype}"
-    #     raise ValueError(message)
-
     if len(array.shape) != len(expected):
         message = f"Expected shape {expected}, got {array.shape}"
         raise ValueError(message)
@@ -1023,7 +1019,7 @@ class GaussianMixtureSKLearn:
             self._gmm = GaussianMixtureModelJax.from_squeezed(
                 means=self.means_init,  # type: ignore [arg-type]
                 covariances=covar.from_precisions(
-                    self.precisions_init  # .astype(np.float32)  # type: ignore [union-attr]
+                    self.precisions_init  # type: ignore [union-attr]
                 ).values_numpy,
                 weights=self.weights_init,  # type: ignore [arg-type]
                 covariance_type=self.covariance_type,
