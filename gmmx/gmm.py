@@ -358,11 +358,8 @@ class DiagCovariances:
         covariances : DiagCovariances
             Diagnoal covariance matrix instance.
         """
-        identity = jnp.expand_dims(
-            jnp.eye(n_features), axis=(Axis.batch, Axis.components)
-        )
-
-        values = jnp.repeat(identity, n_components, axis=Axis.components)
+        values = jnp.ones((n_components, n_features))
+        values = jnp.expand_dims(values, axis=(Axis.batch, Axis.features_covar))
         values = jax.device_put(values, device=device)
         return cls(values=values)
 
